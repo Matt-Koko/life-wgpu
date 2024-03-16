@@ -1,0 +1,29 @@
+[package]
+name = "hello-wgpu"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+cfg-if = "1"
+console_log = "1.0.0"
+log = "0.4.17"
+tracing = "0.1.36"
+tracing-subscriber = { version = "0.3.15", features = ["time"] }
+wgpu = "0.19.3"
+winit = "0.29.15"
+pollster = "0.3.0"
+bytemuck = { version = "1.12.1", features = ["derive"] }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+console_error_panic_hook = "0.1.6"
+console_log = "1.0.0"
+tracing-wasm = "0.2.1"
+wgpu = { version = "0.19.3", features = ["webgl"] }
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4.30"
+web-sys = { version = "0.3", features = ["Document", "Window", "Element"] }
+
+[features]
