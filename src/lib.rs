@@ -204,9 +204,9 @@ pub async fn run() {
         web_sys::window()
             .and_then(|win| win.document())
             .and_then(|doc| {
-                let destination =
-                    // doc.get_element_by_id("hello-wgpu").expect("failed at get_element_by_id");
-                    doc.body()?;
+                // get_element_by_id isn't working for me
+                // let destination = doc.get_element_by_id("hello-wgpu").expect("failed at get_element_by_id");
+                let destination = doc.body()?;
                 let canvas = window.canvas()?.dyn_into::<web_sys::HtmlCanvasElement>().expect("dyn_into");
                 destination.append_child(&canvas).ok()?;
                 Some(())
