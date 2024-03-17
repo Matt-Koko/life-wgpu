@@ -8,6 +8,11 @@
 </h1>
 
 ### Run locally:
+Set environment variable to use custom index.html:
+```bash
+export WASM_SERVER_RUNNER_CUSTOM_INDEX_HTML="./index.html"
+```
+
 In browser:
 ```bash
 cargo run --target wasm32-unknown-unknown

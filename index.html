@@ -7,17 +7,37 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Hello wgpu</title>
     <style>
-        canvas {
+        body {
+            background-color: rgb(32, 32, 32);
+            color: white;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+        }
+        canvas#hello-wgpu {
             background-color: black;
-            margin: 50px;
+            width: 600px;
+            height: auto;
+        }
+
+        canvas {
+            display: block;
+            touch-action: none;
+        }
+
+        canvas:focus {
+            outline: none;
         }
     </style>
 </head>
 
 <body>
-    <h1>does this text show up?</h1>
+    <h1>Hello wgpu</h1>
 
-    <div id="hello-wgpu"></div>
+    <canvas id="hello-wgpu"></canvas>
 
     <script type="module">
         import init from "./api/wasm.js";

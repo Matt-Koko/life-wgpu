@@ -185,34 +185,30 @@ pub async fn run() {
             tracing_subscriber::fmt::init()
         }
     }
-    info!("info!!!");
-    warn!("warning");
-    error!("eeeeeek");
-
+    info!("debug: info log message");
+    warn!("debug: warning log message");
+    error!("debug: error log message");
     
     let event_loop = EventLoop::new().unwrap();
-    
-    // #[allow(unused_mut)]
-    // let mut builder = winit::window::WindowBuilder::new();
 
-    let window = winit::window::WindowBuilder::new()
-        .build(&event_loop).unwrap();
+    #[allow(unused_mut)]
+    let mut builder = winit::window::WindowBuilder::new();
 
     #[cfg(target_arch = "wasm32")]
     {
-        use winit::platform::web::WindowExtWebSys;
-        web_sys::window()
-            .and_then(|win| win.document())
-            .and_then(|doc| {
-                // get_element_by_id isn't working for me
-                // let destination = doc.get_element_by_id("hello-wgpu").expect("failed at get_element_by_id");
-                let destination = doc.body()?;
-                let canvas = window.canvas()?.dyn_into::<web_sys::HtmlCanvasElement>().expect("dyn_into");
-                destination.append_child(&canvas).ok()?;
-                Some(())
-            })
-            .expect("Couldn't append canvas to div.");
+        use wasm_bindgen::JsCast;
+        use winit::platform::web::WindowBuilderExtWebSys;
+        let canvas = web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .get_element_by_id("hello-wgpu")
+            .expect("Failed to get canvas with id 'hello-wgpu'")
+            .dyn_into::<web_sys::HtmlCanvasElement>()
+            .expect("Failed to get canvas");
+        builder = builder.with_canvas(Some(canvas));
     }
+    let window = builder.build(&event_loop).unwrap();
 
     let window = Arc::new(window);
 
