@@ -5,7 +5,7 @@
     <meta charset="UTF-8" />
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Hello wgpu</title>
+    <title>Life wgpu</title>
     <style>
         body {
             background-color: rgb(32, 32, 32);
@@ -17,25 +17,25 @@
             height: 100vh;
             margin: 0;
         }
-        canvas#hello-wgpu {
+        canvas#life-wgpu {
             background-color: transparent;
             width: 600px;
             height: 400px;
         }
 
-        canvas#hello-wgpu:focus {
+        canvas#life-wgpu:focus {
             outline: none;
         }
     </style>
 </head>
 
 <body>
-    <h1>Hello wgpu</h1>
+    <h1>Life wgpu</h1>
 
-    <canvas id="hello-wgpu"></canvas>
+    <canvas id="life-wgpu"></canvas>
 
     <script type="module">
-        import init from "./pkg/hello_wgpu.js";
+        import init from "./pkg/life_wgpu.js";
         init().then(() => {
             console.log("WASM Loaded");
         });

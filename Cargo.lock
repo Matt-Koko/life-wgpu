@@ -597,26 +597,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "hello-wgpu"
-version = "0.1.0"
-dependencies = [
- "bytemuck",
- "cfg-if",
- "console_error_panic_hook",
- "console_log",
- "log",
- "pollster",
- "tracing",
- "tracing-subscriber",
- "tracing-wasm",
- "wasm-bindgen",
- "wasm-bindgen-futures",
- "web-sys",
- "wgpu",
- "winit",
-]
-
-[[package]]
 name = "hexf-parse"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -747,6 +727,26 @@ dependencies = [
  "bitflags 2.4.2",
  "libc",
  "redox_syscall 0.4.1",
+]
+
+[[package]]
+name = "life-wgpu"
+version = "0.1.0"
+dependencies = [
+ "bytemuck",
+ "cfg-if",
+ "console_error_panic_hook",
+ "console_log",
+ "log",
+ "pollster",
+ "tracing",
+ "tracing-subscriber",
+ "tracing-wasm",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
+ "wgpu",
+ "winit",
 ]
 
 [[package]]

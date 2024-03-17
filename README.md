@@ -1,4 +1,4 @@
-<h1 align="center">Hello Wgpu!
+<h1 align="center">Life Wgpu
 </br>
 <a href="https://www.rust-lang.org/"><img src="https://simpleicons.org/icons/rust.svg" width="50px" height="50px"/></a>
 +
@@ -8,9 +8,7 @@
 </h1>
 
 ### Description:
-Render the classic RGB triangle (the hello world of computer graphics) to either the web or desktop using Rust, WebAssembly, and Wgpu.
-
-The web build is hosted at: https://hello-wgpu.vercel.app/
+todo!();
 
 ### Run locally:
 Set environment variable to use custom index.html:

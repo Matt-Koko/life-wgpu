@@ -197,14 +197,14 @@ pub async fn run() {
             .unwrap()
             .document()
             .unwrap()
-            .get_element_by_id("hello-wgpu")
-            .expect("Failed to get canvas with id 'hello-wgpu'")
+            .get_element_by_id("life-wgpu")
+            .expect("Failed to get canvas with id 'life-wgpu'")
             .dyn_into::<web_sys::HtmlCanvasElement>()
             .expect("Failed to get canvas");
         builder = builder.with_canvas(Some(canvas));
     }
     let window = builder.build(&event_loop).unwrap();
-    window.set_title("Hello wgpu!");
+    window.set_title("Life wgpu");
 
     let window = Arc::new(window);
 
