@@ -7,10 +7,15 @@
 <a href="https://wgpu.rs/"><img src="https://wgpu.rs/logo.min.svg" width="50px" height="50px"/></a>
 </h1>
 
+### Description:
+Render the classic RGB triangle (the hello world of computer graphics) to either the web or desktop using Rust, WebAssembly, and Wgpu.
+
+The web build is hosted at: https://hello-wgpu.vercel.app/
+
 ### Run locally:
 Set environment variable to use custom index.html:
 ```bash
-export WASM_SERVER_RUNNER_CUSTOM_INDEX_HTML="./index.html"
+export WASM_SERVER_RUNNER_CUSTOM_INDEX_HTML="./src/in_dev.html"
 ```
 
 In browser:
@@ -28,6 +33,11 @@ In desktop:
 cargo run
 ```
 
+### Build for web:
+```bash
+wasm-pack build --target web
+```
+This will create a `pkg` folder with the web build. See `index.html` for usage.
 
 
 ### Code References:
