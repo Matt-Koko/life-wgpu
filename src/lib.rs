@@ -1,12 +1,11 @@
-use std::borrow::Cow;
+use std::{borrow::Cow, sync::Arc};
 use tracing::{error, info, warn};
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
-use wgpu::{include_wgsl, util::DeviceExt};
 use winit::{
     event::*,
-    event_loop::{ControlFlow, EventLoop},
-    window::{Window, WindowBuilder},
+    event_loop::EventLoop,
+    window::Window,
 };
 
 struct State {
@@ -19,14 +18,14 @@ struct State {
 }
 
 impl State {
-    async fn new(window: &Window) -> Self {
+    async fn new(window: Arc<Window>) -> Self {
         let mut size = window.inner_size();
         size.width = size.width.max(1);
         size.height = size.height.max(1);
 
         let instance = wgpu::Instance::default();
 
-        let surface = instance.create_surface(&window).unwrap();
+        let surface = instance.create_surface(window).unwrap();
         let adapter = instance
             .request_adapter(&wgpu::RequestAdapterOptions {
                 power_preference: wgpu::PowerPreference::default(),
@@ -115,6 +114,7 @@ impl State {
         }
     }
 
+    #[allow(dead_code, unused_variables)]
     fn input(&mut self, event: &WindowEvent) -> bool {
         false
     }
@@ -191,35 +191,33 @@ pub async fn run() {
 
     
     let event_loop = EventLoop::new().unwrap();
+    
+    // #[allow(unused_mut)]
+    // let mut builder = winit::window::WindowBuilder::new();
 
-
-    let window =
-        WindowBuilder::new().build(&event_loop).unwrap();
+    let window = winit::window::WindowBuilder::new()
+        .build(&event_loop).unwrap();
 
     #[cfg(target_arch = "wasm32")]
     {
-        // Winit prevents sizing with CSS, so we have to
-        // set the size manually when on web.
-        use winit::dpi::PhysicalSize;
-        window.set_inner_size(PhysicalSize::new(450, 400));
-
         use winit::platform::web::WindowExtWebSys;
         web_sys::window()
             .and_then(|win| win.document())
             .and_then(|doc| {
-                let dst =
-                    doc.get_element_by_id("wasm-example")?;
-                let canvas =
-                    web_sys::Element::from(window.canvas());
-                dst.append_child(&canvas).ok()?;
+                let destination =
+                    // doc.get_element_by_id("hello-wgpu").expect("failed at get_element_by_id");
+                    doc.body()?;
+                let canvas = window.canvas()?.dyn_into::<web_sys::HtmlCanvasElement>().expect("dyn_into");
+                destination.append_child(&canvas).ok()?;
                 Some(())
             })
             .expect("Couldn't append canvas to div.");
     }
 
-    let mut state = State::new(&window).await;
+    let window = Arc::new(window);
 
-    let window = &window;
+    let mut state = State::new(window.clone()).await;
+
     event_loop
         .run(move |event, target| {
             if let Event::WindowEvent {
