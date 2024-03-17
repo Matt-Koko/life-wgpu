@@ -146,12 +146,7 @@ impl State {
                         resolve_target: None,
                         ops: wgpu::Operations {
                             load: wgpu::LoadOp::Clear(
-                                wgpu::Color {
-                                    r: 0.1,
-                                    g: 0.2,
-                                    b: 0.3,
-                                    a: 1.0,
-                                },
+                                wgpu::Color::BLACK,
                             ),
                             store: wgpu::StoreOp::Store,
                         },
@@ -209,6 +204,7 @@ pub async fn run() {
         builder = builder.with_canvas(Some(canvas));
     }
     let window = builder.build(&event_loop).unwrap();
+    window.set_title("Hello wgpu!");
 
     let window = Arc::new(window);
 
