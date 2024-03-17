@@ -2,46 +2,26 @@
 <html lang="en">
 
 <head>
-    <meta charset="UTF-8" />
-    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Hello wgpu</title>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Learn WGPU</title>
     <style>
-        body {
-            background-color: rgb(32, 32, 32);
-            color: white;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            height: 100vh;
-            margin: 0;
-        }
-        canvas#hello-wgpu {
-            background-color: transparent;
-            width: 600px;
-            height: 400px;
-        }
-
-        canvas#hello-wgpu:focus {
-            outline: none;
+        canvas {
+            background-color: black;
         }
     </style>
 </head>
 
-<body>
-    <h1>Hello wgpu</h1>
-
+<body id="wasm-example">
+    <h1>test</h1>
     <canvas id="hello-wgpu"></canvas>
 
     <script type="module">
-        import init from "./api/wasm.js";
-
-        async function run() {
-            await init("/api/wasm.wasm");
-        }
-
-        run();
+        import init from "./pkg/hello_wgpu.js";
+        init().then(() => {
+            console.log("WASM Loaded");
+        });
     </script>
 </body>
 
