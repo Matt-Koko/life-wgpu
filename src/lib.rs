@@ -12,7 +12,6 @@ use winit::{
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 struct Vertex {
     position: [f32; 2],
-    color: [f32; 3],
 }
 
 impl Vertex {
@@ -26,11 +25,6 @@ impl Vertex {
                     shader_location: 0,
                     format: wgpu::VertexFormat::Float32x2,
                 },
-                wgpu::VertexAttribute {
-                    offset: std::mem::size_of::<[f32; 2]>() as wgpu::BufferAddress,
-                    shader_location: 1,
-                    format: wgpu::VertexFormat::Float32x3,
-                }
             ]
         }
     }
@@ -38,28 +32,44 @@ impl Vertex {
 
 const VERTICES: &[Vertex] = &[
     // Triangle 1
-    Vertex { position: [-0.8, -0.8], color: [1.0, 0.0, 0.0] },
-    Vertex { position: [0.8, -0.8], color: [1.0, 0.0, 0.0] },
-    Vertex { position: [0.8, 0.8], color: [1.0, 0.0, 0.0] },
+    Vertex { position: [-0.8, -0.8] },
+    Vertex { position: [0.8, -0.8] },
+    Vertex { position: [0.8, 0.8] },
     // Triangle 2
-    Vertex { position: [-0.8, -0.8], color: [0.0, 0.0, 1.0] },
-    Vertex { position: [0.8, 0.8], color: [0.0, 0.0, 1.0] },
-    Vertex { position: [-0.8, 0.8], color: [0.0, 0.0, 1.0] },
+    Vertex { position: [-0.8, -0.8] },
+    Vertex { position: [0.8, 0.8] },
+    Vertex { position: [-0.8, 0.8] },
 ];
 
-const GRID_SIZE: u32 = 32;
+const GRID_SIZE: usize = 32;
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
-struct GridUniform {
+struct GridSizeUniform {
     grid: [f32; 2],
 }
 
-impl GridUniform {
+impl GridSizeUniform {
     fn new() -> Self {
         Self {
             grid: [GRID_SIZE as f32, GRID_SIZE as f32],
         }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
+struct CellStateStorage {
+    grid: [u32; GRID_SIZE * GRID_SIZE],
+}
+
+impl CellStateStorage {
+    fn new() -> Self {
+        let mut grid = [0; GRID_SIZE * GRID_SIZE];
+        for i in (0..GRID_SIZE * GRID_SIZE).step_by(3) {
+            grid[i] = 1;
+        }
+        Self { grid }
     }
 }
 
@@ -73,7 +83,7 @@ struct State {
     vertex_buffer: wgpu::Buffer,
     num_vertices: u32,
     grid_size_uniform_buffer: wgpu::Buffer,
-    grid_size_bind_group: wgpu::BindGroup,
+    bind_group: wgpu::BindGroup,
 }
 
 impl State {
@@ -124,16 +134,26 @@ impl State {
         );
 
         // Create grid size uniform buffer
-        let grid_uniform = GridUniform::new();
+        let grid_size_uniform = GridSizeUniform::new();
         let grid_size_uniform_buffer = device.create_buffer_init(
             &wgpu::util::BufferInitDescriptor {
                 label: Some("Grid Uniforms"),
-                contents: bytemuck::cast_slice(&[grid_uniform]),
+                contents: bytemuck::cast_slice(&[grid_size_uniform]),
                 usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             }
         );
 
-        let grid_size_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+        // Create cell state storage buffer
+        let cell_state_storage = CellStateStorage::new();
+        let cell_state_storage_buffer = device.create_buffer_init(
+            &wgpu::util::BufferInitDescriptor {
+                label: Some("Cell State Storage"),
+                contents: bytemuck::cast_slice(&[cell_state_storage]),
+                usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+            }
+        );
+
+        let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             entries: &[
                 wgpu::BindGroupLayoutEntry {
                     binding: 0,
@@ -144,20 +164,34 @@ impl State {
                         min_binding_size: None,
                     },
                     count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::all(),
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true }, //todo
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
                 }
             ],
-            label: Some("grid_size_bind_group_layout"),
+            label: Some("bind_group_layout"),
         });
 
-        let grid_size_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: &grid_size_bind_group_layout,
+        let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout: &bind_group_layout,
             entries: &[
                 wgpu::BindGroupEntry {
                     binding: 0,
                     resource: grid_size_uniform_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: cell_state_storage_buffer.as_entire_binding(),
                 }
             ],
-            label: Some("grid_size_bind_group"),
+            label: Some("bind_group"),
         });
 
         // Load the shaders from disk
@@ -170,7 +204,7 @@ impl State {
             &wgpu::PipelineLayoutDescriptor {
                 label: Some("Render Pipeline Layout"),
                 bind_group_layouts: &[
-                    &grid_size_bind_group_layout,
+                    &bind_group_layout,
                 ],
                 push_constant_ranges: &[],
             }
@@ -216,7 +250,7 @@ impl State {
             vertex_buffer,
             num_vertices,
             grid_size_uniform_buffer,
-            grid_size_bind_group,
+            bind_group,
         }
     }
 
@@ -281,10 +315,12 @@ impl State {
                     occlusion_query_set: None,
                 });
 
+            let num_instances = (GRID_SIZE * GRID_SIZE) as u32;
+
             render_pass.set_pipeline(&self.render_pipeline);
-            render_pass.set_bind_group(0, &self.grid_size_bind_group, &[]);
+            render_pass.set_bind_group(0, &self.bind_group, &[]);
             render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-            render_pass.draw(0..self.num_vertices, 0..GRID_SIZE*GRID_SIZE);
+            render_pass.draw(0..self.num_vertices, 0..num_instances);
         }
 
         
