@@ -1,12 +1,10 @@
+use instant::Instant;
 use std::{borrow::Cow, sync::Arc};
+#[allow(unused_imports)]
 use tracing::{error, info, warn};
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
-use winit::{
-    event::*,
-    event_loop::EventLoop,
-    window::Window,
-};
+use winit::{event::*, event_loop::EventLoop, window::Window};
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
@@ -19,26 +17,36 @@ impl Vertex {
         wgpu::VertexBufferLayout {
             array_stride: std::mem::size_of::<Vertex>() as wgpu::BufferAddress,
             step_mode: wgpu::VertexStepMode::Vertex,
-            attributes: &[
-                wgpu::VertexAttribute {
-                    offset: 0,
-                    shader_location: 0,
-                    format: wgpu::VertexFormat::Float32x2,
-                },
-            ]
+            attributes: &[wgpu::VertexAttribute {
+                offset: 0,
+                shader_location: 0,
+                format: wgpu::VertexFormat::Float32x2,
+            }],
         }
     }
 }
 
 const VERTICES: &[Vertex] = &[
     // Triangle 1
-    Vertex { position: [-0.8, -0.8] },
-    Vertex { position: [0.8, -0.8] },
-    Vertex { position: [0.8, 0.8] },
+    Vertex {
+        position: [-0.8, -0.8],
+    },
+    Vertex {
+        position: [0.8, -0.8],
+    },
+    Vertex {
+        position: [0.8, 0.8],
+    },
     // Triangle 2
-    Vertex { position: [-0.8, -0.8] },
-    Vertex { position: [0.8, 0.8] },
-    Vertex { position: [-0.8, 0.8] },
+    Vertex {
+        position: [-0.8, -0.8],
+    },
+    Vertex {
+        position: [0.8, 0.8],
+    },
+    Vertex {
+        position: [-0.8, 0.8],
+    },
 ];
 
 const GRID_SIZE: usize = 32;
@@ -82,7 +90,6 @@ struct State {
     render_pipeline: wgpu::RenderPipeline,
     vertex_buffer: wgpu::Buffer,
     num_vertices: u32,
-    grid_size_uniform_buffer: wgpu::Buffer,
     bind_group: wgpu::BindGroup,
 }
 
@@ -111,47 +118,47 @@ impl State {
         let (device, queue) = adapter
             .request_device(
                 &wgpu::DeviceDescriptor {
-                    label: None,
                     required_features: wgpu::Features::empty(),
-                    // Make sure we use the texture resolution limits from the adapter, so we can support images the size of the swapchain.
-                    required_limits: wgpu::Limits::downlevel_webgl2_defaults()
-                        .using_resolution(adapter.limits()),
+                    // WebGL doesn't support all of wgpu's features, so if
+                    // we're building for the web we'll have to disable some.
+                    required_limits: if cfg!(target_arch = "wasm32") {
+                        wgpu::Limits::downlevel_webgl2_defaults()
+                    } else {
+                        wgpu::Limits::default()
+                    },
+                    label: None,
                 },
-                None,
+                None, // Trace path
             )
             .await
             .expect("Failed to create device");
-        
-            let num_vertices = VERTICES.len() as u32;
+
+        let num_vertices = VERTICES.len() as u32;
 
         // Create the vertex buffer
-        let vertex_buffer = device.create_buffer_init(
-            &wgpu::util::BufferInitDescriptor {
-                label: Some("Vertex Buffer"),
-                contents: bytemuck::cast_slice(VERTICES),
-                usage: wgpu::BufferUsages::VERTEX,
-            }
-        );
+        let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Vertex Buffer"),
+            contents: bytemuck::cast_slice(VERTICES),
+            usage: wgpu::BufferUsages::VERTEX,
+        });
 
         // Create grid size uniform buffer
         let grid_size_uniform = GridSizeUniform::new();
-        let grid_size_uniform_buffer = device.create_buffer_init(
-            &wgpu::util::BufferInitDescriptor {
+        let grid_size_uniform_buffer =
+            device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some("Grid Uniforms"),
                 contents: bytemuck::cast_slice(&[grid_size_uniform]),
                 usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-            }
-        );
+            });
 
         // Create cell state storage buffer
         let cell_state_storage = CellStateStorage::new();
-        let cell_state_storage_buffer = device.create_buffer_init(
-            &wgpu::util::BufferInitDescriptor {
+        let cell_state_storage_buffer =
+            device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some("Cell State Storage"),
                 contents: bytemuck::cast_slice(&[cell_state_storage]),
                 usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
-            }
-        );
+            });
 
         let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             entries: &[
@@ -174,7 +181,7 @@ impl State {
                         min_binding_size: None,
                     },
                     count: None,
-                }
+                },
             ],
             label: Some("bind_group_layout"),
         });
@@ -189,7 +196,7 @@ impl State {
                 wgpu::BindGroupEntry {
                     binding: 1,
                     resource: cell_state_storage_buffer.as_entire_binding(),
-                }
+                },
             ],
             label: Some("bind_group"),
         });
@@ -200,15 +207,12 @@ impl State {
             source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(include_str!("shader.wgsl"))),
         });
 
-        let render_pipeline_layout = device.create_pipeline_layout(
-            &wgpu::PipelineLayoutDescriptor {
+        let render_pipeline_layout =
+            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Render Pipeline Layout"),
-                bind_group_layouts: &[
-                    &bind_group_layout,
-                ],
+                bind_group_layouts: &[&bind_group_layout],
                 push_constant_ranges: &[],
-            }
-        );
+            });
 
         let swapchain_capabilities = surface.get_capabilities(&adapter);
         let swapchain_format = swapchain_capabilities.formats[0];
@@ -219,9 +223,7 @@ impl State {
             vertex: wgpu::VertexState {
                 module: &shader,
                 entry_point: "vs_main",
-                buffers: &[
-                    Vertex::desc(),
-                ],
+                buffers: &[Vertex::desc()],
             },
             fragment: Some(wgpu::FragmentState {
                 module: &shader,
@@ -239,7 +241,6 @@ impl State {
             .unwrap();
         surface.configure(&device, &config);
 
-
         Self {
             surface,
             device,
@@ -249,21 +250,17 @@ impl State {
             render_pipeline,
             vertex_buffer,
             num_vertices,
-            grid_size_uniform_buffer,
             bind_group,
         }
     }
 
-    fn resize(
-        &mut self,
-        new_size: winit::dpi::PhysicalSize<u32>,
-    ) {
+    fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>) {
         if new_size.width > 0 && new_size.height > 0 {
             self.size = new_size;
             self.config.width = new_size.width;
             self.config.height = new_size.height;
-            self.surface
-                .configure(&self.device, &self.config);
+            self.surface.configure(&self.device, &self.config);
+            // self.window.request_redraw(); // TODO
         }
     }
 
@@ -283,37 +280,32 @@ impl State {
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
 
-        let mut encoder =
-            self.device.create_command_encoder(
-                &wgpu::CommandEncoderDescriptor {
-                    label: Some("Render Encoder"),
-                },
-            );
-            
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("Render Encoder"),
+            });
+
         {
-            let mut render_pass =
-                encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                    label: None,
-                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                        view: &view,
-                        resolve_target: None,
-                        ops: wgpu::Operations {
-                            load: wgpu::LoadOp::Clear(
-                                wgpu::Color {
-                                    r: 32.0 / 255.0,
-                                    g: 32.0 / 255.0,
-                                    b: 32.0 / 255.0,
-                                    a: 1.0,
-                                
-                                },
-                            ),
-                            store: wgpu::StoreOp::Store,
-                        },
-                    })],
-                    depth_stencil_attachment: None,
-                    timestamp_writes: None,
-                    occlusion_query_set: None,
-                });
+            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: None,
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(wgpu::Color {
+                            r: 32.0 / 255.0,
+                            g: 32.0 / 255.0,
+                            b: 32.0 / 255.0,
+                            a: 1.0,
+                        }),
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: None,
+                timestamp_writes: None,
+                occlusion_query_set: None,
+            });
 
             let num_instances = (GRID_SIZE * GRID_SIZE) as u32;
 
@@ -323,7 +315,6 @@ impl State {
             render_pass.draw(0..self.num_vertices, 0..num_instances);
         }
 
-        
         self.queue.submit(Some(encoder.finish()));
         output.present();
 
@@ -342,10 +333,14 @@ pub async fn run() {
             tracing_subscriber::fmt::init()
         }
     }
-    info!("debug: info log message");
-    warn!("debug: warning log message");
-    error!("debug: error log message");
-    
+    // Logging usage
+    // info!("debug: info log message");
+    // warn!("debug: warning log message");
+    // error!("debug: error log message");
+
+    // use instant::Duration;
+    let mut last_update_time = Instant::now();
+
     let event_loop = EventLoop::new().unwrap();
 
     #[allow(unused_mut)]
@@ -373,38 +368,68 @@ pub async fn run() {
     let mut state = State::new(window.clone()).await;
 
     event_loop
-        .run(move |event, target| {
-            if let Event::WindowEvent {
-                window_id: _,
-                event,
-            } = event
-            {
-                match event {
-                    WindowEvent::Resized(new_size) => {
-                        // Reconfigure the surface with the new size
-                        state.config.width = new_size.width.max(1);
-                        state.config.height = new_size.height.max(1);
-                        state.surface.configure(&state.device, &state.config);
-                        // On macos the window needs to be redrawn manually after resizing
-                        window.request_redraw();
-                    }
-                    WindowEvent::RedrawRequested => {
-                        state.update();
-                        match state.render() {
-                            Ok(_) => {}
-                            // Reconfigure the surface if lost
-                            Err(wgpu::SurfaceError::Lost) => state.resize(state.size),
-                            // The system is out of memory, we should probably quit
-                            Err(wgpu::SurfaceError::OutOfMemory) => target.exit(),
-                            // All other errors (Outdated, Timeout) should be resolved by the next frame
-                            Err(e) => eprintln!("{:?}", e),
+        .run(move |event, target| match event {
+            Event::WindowEvent {
+                ref event,
+                window_id,
+            } if window_id == window.id() => {
+                if !state.input(event) {
+                    match event {
+                        WindowEvent::CloseRequested
+                        | WindowEvent::KeyboardInput {
+                            event:
+                                KeyEvent {
+                                    state: ElementState::Pressed,
+                                    physical_key:
+                                        winit::keyboard::PhysicalKey::Code(
+                                            winit::keyboard::KeyCode::Escape,
+                                        ),
+                                    ..
+                                },
+                            ..
+                        } => target.exit(),
+                        WindowEvent::Resized(new_size) => {
+                            // Reconfigure the surface with the new size
+                            state.config.width = new_size.width.max(1);
+                            state.config.height = new_size.height.max(1);
+                            state.surface.configure(&state.device, &state.config);
+                            // On macos the window needs to be redrawn manually after resizing
+                            window.request_redraw();
                         }
-
+                        // WindowEvent::Resized(physical_size) => {
+                        //     state.resize(*physical_size);
+                        // },
+                        WindowEvent::RedrawRequested => {
+                            state.update();
+                            match state.render() {
+                                Ok(_) => {}
+                                // Reconfigure the surface if lost
+                                Err(wgpu::SurfaceError::Lost) => state.resize(state.size),
+                                // The system is out of memory, we should probably quit
+                                Err(wgpu::SurfaceError::OutOfMemory) => target.exit(),
+                                // All other errors (Outdated, Timeout) should be resolved by the next frame
+                                Err(e) => eprintln!("{:?}", e),
+                            }
+                        }
+                        _ => {}
                     }
-                    WindowEvent::CloseRequested => target.exit(),
-                    _ => {}
-                };
+                }
             }
+            Event::AboutToWait => {
+                const UPDATE_INTERVAL: u128 = 1000; // in milliseconds
+
+                let now = Instant::now();
+                if now.duration_since(last_update_time).as_millis() >= UPDATE_INTERVAL {
+                    info!("next frame pls - {:?}", now);
+                    window.request_redraw();
+                    last_update_time = now;
+                }
+
+                // When the event loop finishes, immediately begin a new iteration.
+                // This is needed to prevent the event loop from idling.
+                target.set_control_flow(winit::event_loop::ControlFlow::Poll);
+            }
+            _ => {}
         })
-        .unwrap();
+        .expect("Failed to run event loop");
 }
