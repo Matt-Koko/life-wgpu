@@ -11,7 +11,7 @@ use winit::{
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 struct Vertex {
-    position: [f32; 3],
+    position: [f32; 2],
     color: [f32; 3],
 }
 
@@ -24,10 +24,10 @@ impl Vertex {
                 wgpu::VertexAttribute {
                     offset: 0,
                     shader_location: 0,
-                    format: wgpu::VertexFormat::Float32x3,
+                    format: wgpu::VertexFormat::Float32x2,
                 },
                 wgpu::VertexAttribute {
-                    offset: std::mem::size_of::<[f32; 3]>() as wgpu::BufferAddress,
+                    offset: std::mem::size_of::<[f32; 2]>() as wgpu::BufferAddress,
                     shader_location: 1,
                     format: wgpu::VertexFormat::Float32x3,
                 }
@@ -36,17 +36,32 @@ impl Vertex {
     }
 }
 
-// lib.rs
 const VERTICES: &[Vertex] = &[
     // Triangle 1
-    Vertex { position: [-0.8, -0.8, 0.0], color: [1.0, 0.0, 0.0] },
-    Vertex { position: [0.8, -0.8, 0.0], color: [1.0, 0.0, 0.0] },
-    Vertex { position: [0.8, 0.8, 0.0], color: [1.0, 0.0, 0.0] },
+    Vertex { position: [-0.8, -0.8], color: [1.0, 0.0, 0.0] },
+    Vertex { position: [0.8, -0.8], color: [1.0, 0.0, 0.0] },
+    Vertex { position: [0.8, 0.8], color: [1.0, 0.0, 0.0] },
     // Triangle 2
-    Vertex { position: [-0.8, -0.8, 0.0], color: [0.0, 0.0, 1.0] },
-    Vertex { position: [0.8, 0.8, 0.0], color: [0.0, 0.0, 1.0] },
-    Vertex { position: [-0.8, 0.8, 1.0], color: [0.0, 0.0, 1.0] },
+    Vertex { position: [-0.8, -0.8], color: [0.0, 0.0, 1.0] },
+    Vertex { position: [0.8, 0.8], color: [0.0, 0.0, 1.0] },
+    Vertex { position: [-0.8, 0.8], color: [0.0, 0.0, 1.0] },
 ];
+
+const GRID_SIZE: u32 = 32;
+
+#[repr(C)]
+#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
+struct GridUniform {
+    grid: [f32; 2],
+}
+
+impl GridUniform {
+    fn new() -> Self {
+        Self {
+            grid: [GRID_SIZE as f32, GRID_SIZE as f32],
+        }
+    }
+}
 
 struct State {
     surface: wgpu::Surface<'static>,
@@ -57,13 +72,13 @@ struct State {
     render_pipeline: wgpu::RenderPipeline,
     vertex_buffer: wgpu::Buffer,
     num_vertices: u32,
+    grid_size_uniform_buffer: wgpu::Buffer,
+    grid_size_bind_group: wgpu::BindGroup,
 }
 
 impl State {
     async fn new(window: Arc<Window>) -> Self {
         use wgpu::util::DeviceExt;
-
-        let num_vertices = VERTICES.len() as u32;
 
         let mut size = window.inner_size();
         size.width = size.width.max(1);
@@ -96,21 +111,8 @@ impl State {
             )
             .await
             .expect("Failed to create device");
-
-        // Load the shaders from disk
-        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: None,
-            source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(include_str!("shader.wgsl"))),
-        });
-
-        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: None,
-            bind_group_layouts: &[],
-            push_constant_ranges: &[],
-        });
-
-        let swapchain_capabilities = surface.get_capabilities(&adapter);
-        let swapchain_format = swapchain_capabilities.formats[0];
+        
+            let num_vertices = VERTICES.len() as u32;
 
         // Create the vertex buffer
         let vertex_buffer = device.create_buffer_init(
@@ -121,9 +123,65 @@ impl State {
             }
         );
 
+        // Create grid size uniform buffer
+        let grid_uniform = GridUniform::new();
+        let grid_size_uniform_buffer = device.create_buffer_init(
+            &wgpu::util::BufferInitDescriptor {
+                label: Some("Grid Uniforms"),
+                contents: bytemuck::cast_slice(&[grid_uniform]),
+                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            }
+        );
+
+        let grid_size_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            entries: &[
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::VERTEX,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                }
+            ],
+            label: Some("grid_size_bind_group_layout"),
+        });
+
+        let grid_size_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout: &grid_size_bind_group_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: grid_size_uniform_buffer.as_entire_binding(),
+                }
+            ],
+            label: Some("grid_size_bind_group"),
+        });
+
+        // Load the shaders from disk
+        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: None,
+            source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(include_str!("shader.wgsl"))),
+        });
+
+        let render_pipeline_layout = device.create_pipeline_layout(
+            &wgpu::PipelineLayoutDescriptor {
+                label: Some("Render Pipeline Layout"),
+                bind_group_layouts: &[
+                    &grid_size_bind_group_layout,
+                ],
+                push_constant_ranges: &[],
+            }
+        );
+
+        let swapchain_capabilities = surface.get_capabilities(&adapter);
+        let swapchain_format = swapchain_capabilities.formats[0];
+
         let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: None,
-            layout: Some(&pipeline_layout),
+            layout: Some(&render_pipeline_layout),
             vertex: wgpu::VertexState {
                 module: &shader,
                 entry_point: "vs_main",
@@ -157,6 +215,8 @@ impl State {
             render_pipeline,
             vertex_buffer,
             num_vertices,
+            grid_size_uniform_buffer,
+            grid_size_bind_group,
         }
     }
 
@@ -216,8 +276,9 @@ impl State {
                 });
 
             render_pass.set_pipeline(&self.render_pipeline);
+            render_pass.set_bind_group(0, &self.grid_size_bind_group, &[]);
             render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-            render_pass.draw(0..self.num_vertices, 0..1);
+            render_pass.draw(0..self.num_vertices, 0..GRID_SIZE*GRID_SIZE);
         }
 
         

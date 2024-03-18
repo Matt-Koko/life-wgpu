@@ -1,7 +1,9 @@
+@group(0) @binding(0) var<uniform> grid: vec2<f32>;
+
 // Vertex shader
 
 struct VertexInput {
-    @location(0) position: vec3<f32>,
+    @location(0) position: vec2<f32>,
     @location(1) color: vec3<f32>,
 };
 
@@ -12,11 +14,20 @@ struct VertexOutput {
 
 @vertex
 fn vs_main(
-    model: VertexInput,
+    input: VertexInput,
+    @builtin(instance_index) instance: u32,
 ) -> VertexOutput {
     var out: VertexOutput;
-    out.color = model.color;
-    out.clip_position = vec4<f32>(model.position, 1.0);
+    
+    out.color = input.color;
+
+    let i = f32(instance);
+    let cell = vec2<f32>(i % grid.x, floor(i / grid.x));
+    let cell_offset = cell / grid * 2;
+
+    let grid_pos = (input.position + 1) / grid - 1 + cell_offset;
+    out.clip_position = vec4<f32>(grid_pos, 0.0, 1.0);
+
     return out;
 }
 
