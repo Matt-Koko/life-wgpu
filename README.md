@@ -37,6 +37,10 @@ wasm-pack build --target web
 ```
 This will create a `pkg` folder with the web build. See `index.html` for usage.
 
+To serve the web build locally:
+```bash
+npx serve .
+```
 
 ### Code References:
 - [Learn Wgpu - sotrh](https://sotrh.github.io/learn-wgpu/beginner/tutorial1-window/)
