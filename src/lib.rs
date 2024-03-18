@@ -1,5 +1,5 @@
 use instant::Instant;
-use std::{borrow::Cow, sync::Arc};
+use std::borrow::Cow;
 #[allow(unused_imports)]
 use tracing::{error, info, warn};
 #[cfg(target_arch = "wasm32")]
@@ -81,8 +81,9 @@ impl CellStateStorage {
     }
 }
 
-struct State {
-    surface: wgpu::Surface<'static>,
+struct State<'a> {
+    window: &'a Window,
+    surface: wgpu::Surface<'a>,
     device: wgpu::Device,
     queue: wgpu::Queue,
     config: wgpu::SurfaceConfiguration,
@@ -93,8 +94,8 @@ struct State {
     bind_group: wgpu::BindGroup,
 }
 
-impl State {
-    async fn new(window: Arc<Window>) -> Self {
+impl<'a> State<'a> {
+    async fn new(window: &'a Window) -> Self {
         use wgpu::util::DeviceExt;
 
         let mut size = window.inner_size();
@@ -242,6 +243,7 @@ impl State {
         surface.configure(&device, &config);
 
         Self {
+            window,
             surface,
             device,
             queue,
@@ -255,12 +257,15 @@ impl State {
     }
 
     fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>) {
+        // winit will panic if the window is 0x0
         if new_size.width > 0 && new_size.height > 0 {
+            // Reconfigure the surface with the new size
             self.size = new_size;
             self.config.width = new_size.width;
             self.config.height = new_size.height;
             self.surface.configure(&self.device, &self.config);
-            // self.window.request_redraw(); // TODO
+            // On macos the window needs to be redrawn manually after resizing
+            self.window.request_redraw();
         }
     }
 
@@ -338,9 +343,6 @@ pub async fn run() {
     // warn!("debug: warning log message");
     // error!("debug: error log message");
 
-    // use instant::Duration;
-    let mut last_update_time = Instant::now();
-
     let event_loop = EventLoop::new().unwrap();
 
     #[allow(unused_mut)]
@@ -363,16 +365,16 @@ pub async fn run() {
     let window = builder.build(&event_loop).unwrap();
     window.set_title("Life wgpu");
 
-    let window = Arc::new(window);
+    let mut state = State::new(&window).await;
 
-    let mut state = State::new(window.clone()).await;
+    let mut last_update_time = Instant::now();
 
     event_loop
         .run(move |event, target| match event {
             Event::WindowEvent {
                 ref event,
                 window_id,
-            } if window_id == window.id() => {
+            } if window_id == state.window.id() => {
                 if !state.input(event) {
                     match event {
                         WindowEvent::CloseRequested
@@ -388,17 +390,9 @@ pub async fn run() {
                                 },
                             ..
                         } => target.exit(),
-                        WindowEvent::Resized(new_size) => {
-                            // Reconfigure the surface with the new size
-                            state.config.width = new_size.width.max(1);
-                            state.config.height = new_size.height.max(1);
-                            state.surface.configure(&state.device, &state.config);
-                            // On macos the window needs to be redrawn manually after resizing
-                            window.request_redraw();
-                        }
-                        // WindowEvent::Resized(physical_size) => {
-                        //     state.resize(*physical_size);
-                        // },
+                        WindowEvent::Resized(physical_size) => {
+                            state.resize(*physical_size);
+                        },
                         WindowEvent::RedrawRequested => {
                             state.update();
                             match state.render() {
@@ -421,7 +415,7 @@ pub async fn run() {
                 let now = Instant::now();
                 if now.duration_since(last_update_time).as_millis() >= UPDATE_INTERVAL {
                     info!("next frame pls - {:?}", now);
-                    window.request_redraw();
+                    state.window.request_redraw();
                     last_update_time = now;
                 }
 
