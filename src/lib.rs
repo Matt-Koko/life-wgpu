@@ -137,7 +137,7 @@ impl State {
             entries: &[
                 wgpu::BindGroupLayoutEntry {
                     binding: 0,
-                    visibility: wgpu::ShaderStages::VERTEX,
+                    visibility: wgpu::ShaderStages::all(),
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
@@ -265,7 +265,13 @@ impl State {
                         resolve_target: None,
                         ops: wgpu::Operations {
                             load: wgpu::LoadOp::Clear(
-                                wgpu::Color::BLACK,
+                                wgpu::Color {
+                                    r: 32.0 / 255.0,
+                                    g: 32.0 / 255.0,
+                                    b: 32.0 / 255.0,
+                                    a: 1.0,
+                                
+                                },
                             ),
                             store: wgpu::StoreOp::Store,
                         },
