@@ -48,6 +48,8 @@ const VERTICES: &[Vertex] = &[
         position: [-0.8, 0.8],
     },
 ];
+const NUM_VERTICES: u32 = VERTICES.len() as u32;
+const NUM_SQUARE_INSTANCES: u32 = (GRID_SIZE * GRID_SIZE) as u32;
 
 const GRID_SIZE: usize = 32;
 
@@ -68,17 +70,31 @@ impl GridSizeUniform {
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 struct CellStateStorage {
-    grid: [u32; GRID_SIZE * GRID_SIZE],
+    state_a: [u32; GRID_SIZE * GRID_SIZE],
+    state_b: [u32; GRID_SIZE * GRID_SIZE],
 }
 
 impl CellStateStorage {
     fn new() -> Self {
-        let mut grid = [0; GRID_SIZE * GRID_SIZE];
+        let mut grid_a = [0; GRID_SIZE * GRID_SIZE];
         for i in (0..GRID_SIZE * GRID_SIZE).step_by(3) {
-            grid[i] = 1;
+            grid_a[i] = 1;
         }
-        Self { grid }
+        let mut grid_b = [0; GRID_SIZE * GRID_SIZE];
+        for i in (0..GRID_SIZE * GRID_SIZE).step_by(2) {
+            grid_b[i] = 1;
+        }
+        Self {
+            state_a: grid_a,
+            state_b: grid_b,
+        }
     }
+}
+
+// We use two bind groups to enable the ping pong buffer pattern
+struct BindGroups {
+    group_a: wgpu::BindGroup,
+    group_b: wgpu::BindGroup,
 }
 
 struct State<'a> {
@@ -90,8 +106,8 @@ struct State<'a> {
     size: winit::dpi::PhysicalSize<u32>,
     render_pipeline: wgpu::RenderPipeline,
     vertex_buffer: wgpu::Buffer,
-    num_vertices: u32,
-    bind_group: wgpu::BindGroup,
+    bind_groups: BindGroups,
+    step: u32, // how many simulation steps have been run
 }
 
 impl<'a> State<'a> {
@@ -134,8 +150,6 @@ impl<'a> State<'a> {
             .await
             .expect("Failed to create device");
 
-        let num_vertices = VERTICES.len() as u32;
-
         // Create the vertex buffer
         let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Vertex Buffer"),
@@ -153,11 +167,20 @@ impl<'a> State<'a> {
             });
 
         // Create cell state storage buffer
+        // todo we use ping pong buffers here
+
+        // todo can we use         self.queue.write_buffer(buffer, offset, data)
         let cell_state_storage = CellStateStorage::new();
-        let cell_state_storage_buffer =
+        let cell_state_storage_buffer_state_a =
             device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("Cell State Storage"),
-                contents: bytemuck::cast_slice(&[cell_state_storage]),
+                label: Some("Cell State Storage Buffer A"),
+                contents: bytemuck::cast_slice(&[cell_state_storage.state_a]),
+                usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+            });
+        let cell_state_storage_buffer_state_b =
+            device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Cell State Storage Buffer B"),
+                contents: bytemuck::cast_slice(&[cell_state_storage.state_b]),
                 usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
             });
 
@@ -187,20 +210,36 @@ impl<'a> State<'a> {
             label: Some("bind_group_layout"),
         });
 
-        let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: &bind_group_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: grid_size_uniform_buffer.as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: cell_state_storage_buffer.as_entire_binding(),
-                },
-            ],
-            label: Some("bind_group"),
-        });
+        let bind_groups = BindGroups {
+            group_a: device.create_bind_group(&wgpu::BindGroupDescriptor {
+                layout: &bind_group_layout,
+                entries: &[
+                    wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: grid_size_uniform_buffer.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 1,
+                        resource: cell_state_storage_buffer_state_a.as_entire_binding(),
+                    },
+                ],
+                label: Some("Cell Renderer Bind Group A"),
+            }),
+            group_b: device.create_bind_group(&wgpu::BindGroupDescriptor {
+                layout: &bind_group_layout,
+                entries: &[
+                    wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: grid_size_uniform_buffer.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 1,
+                        resource: cell_state_storage_buffer_state_b.as_entire_binding(),
+                    },
+                ],
+                label: Some("Cell Renderer Bind Group B"),
+            }),
+        };
 
         // Load the shaders from disk
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
@@ -251,8 +290,8 @@ impl<'a> State<'a> {
             size,
             render_pipeline,
             vertex_buffer,
-            num_vertices,
-            bind_group,
+            bind_groups,
+            step: 0,
         }
     }
 
@@ -312,14 +351,17 @@ impl<'a> State<'a> {
                 occlusion_query_set: None,
             });
 
-            let num_instances = (GRID_SIZE * GRID_SIZE) as u32;
+            let bind_group = if self.step % 2 == 0 {
+                &self.bind_groups.group_a
+            } else {
+                &self.bind_groups.group_b
+            };
 
             render_pass.set_pipeline(&self.render_pipeline);
-            render_pass.set_bind_group(0, &self.bind_group, &[]);
+            render_pass.set_bind_group(0, bind_group, &[]);
             render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-            render_pass.draw(0..self.num_vertices, 0..num_instances);
+            render_pass.draw(0..NUM_VERTICES, 0..NUM_SQUARE_INSTANCES);
         }
-
         self.queue.submit(Some(encoder.finish()));
         output.present();
 
@@ -392,7 +434,7 @@ pub async fn run() {
                         } => target.exit(),
                         WindowEvent::Resized(physical_size) => {
                             state.resize(*physical_size);
-                        },
+                        }
                         WindowEvent::RedrawRequested => {
                             state.update();
                             match state.render() {
@@ -414,8 +456,10 @@ pub async fn run() {
 
                 let now = Instant::now();
                 if now.duration_since(last_update_time).as_millis() >= UPDATE_INTERVAL {
-                    info!("next frame pls - {:?}", now);
+                    // Draw the next frame of the simulation
+                    state.step += 1;
                     state.window.request_redraw();
+
                     last_update_time = now;
                 }
 
