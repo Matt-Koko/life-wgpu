@@ -76,14 +76,17 @@ struct CellStateStorage {
 
 impl CellStateStorage {
     fn new() -> Self {
+        use rand::Rng;
+
         let mut grid_a = [0; GRID_SIZE * GRID_SIZE];
-        for i in (0..GRID_SIZE * GRID_SIZE).step_by(3) {
-            grid_a[i] = 1;
+        let mut rng = rand::thread_rng();
+
+        for i in 0..GRID_SIZE * GRID_SIZE {
+            grid_a[i] = rng.gen_range(0..=1);
         }
-        let mut grid_b = [0; GRID_SIZE * GRID_SIZE];
-        for i in (0..GRID_SIZE * GRID_SIZE).step_by(2) {
-            grid_b[i] = 1;
-        }
+
+        let grid_b = [0; GRID_SIZE * GRID_SIZE];
+        
         Self {
             state_a: grid_a,
             state_b: grid_b,
@@ -99,24 +102,25 @@ struct BindGroups {
 
 struct State<'a> {
     window: &'a Window,
+    window_size: winit::dpi::PhysicalSize<u32>,
     surface: wgpu::Surface<'a>,
     device: wgpu::Device,
     queue: wgpu::Queue,
     config: wgpu::SurfaceConfiguration,
-    size: winit::dpi::PhysicalSize<u32>,
-    render_pipeline: wgpu::RenderPipeline,
     vertex_buffer: wgpu::Buffer,
     bind_groups: BindGroups,
     step: u32, // how many simulation steps have been run
+    render_pipeline: wgpu::RenderPipeline,
+    compute_pipeline: wgpu::ComputePipeline,
 }
 
 impl<'a> State<'a> {
     async fn new(window: &'a Window) -> Self {
         use wgpu::util::DeviceExt;
 
-        let mut size = window.inner_size();
-        size.width = size.width.max(1);
-        size.height = size.height.max(1);
+        let mut window_size = window.inner_size();
+        window_size.width = window_size.width.max(1);
+        window_size.height = window_size.height.max(1);
 
         let instance = wgpu::Instance::default();
 
@@ -149,6 +153,11 @@ impl<'a> State<'a> {
             )
             .await
             .expect("Failed to create device");
+
+        let config = surface
+            .get_default_config(&adapter, window_size.width, window_size.height)
+            .unwrap();
+        surface.configure(&device, &config);
 
         // Create the vertex buffer
         let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -188,7 +197,11 @@ impl<'a> State<'a> {
             entries: &[
                 wgpu::BindGroupLayoutEntry {
                     binding: 0,
-                    visibility: wgpu::ShaderStages::all(),
+                    visibility: wgpu::ShaderStages::from_iter(
+                        wgpu::ShaderStages::VERTEX | 
+                        wgpu::ShaderStages::FRAGMENT | 
+                        wgpu::ShaderStages::COMPUTE
+                    ),
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
@@ -196,11 +209,26 @@ impl<'a> State<'a> {
                     },
                     count: None,
                 },
-                wgpu::BindGroupLayoutEntry {
+                wgpu::BindGroupLayoutEntry { // cell state input buffer (read only)
                     binding: 1,
-                    visibility: wgpu::ShaderStages::all(),
+                    visibility: wgpu::ShaderStages::from_iter(
+                        wgpu::ShaderStages::VERTEX | 
+                        wgpu::ShaderStages::COMPUTE
+                    ),
                     ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: true }, //todo
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry { // cell state output buffer (read-write)
+                    binding: 2,
+                    visibility: wgpu::ShaderStages::from_iter(
+                        wgpu::ShaderStages::COMPUTE
+                    ),
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: false },
                         has_dynamic_offset: false,
                         min_binding_size: None,
                     },
@@ -212,6 +240,9 @@ impl<'a> State<'a> {
 
         let bind_groups = BindGroups {
             group_a: device.create_bind_group(&wgpu::BindGroupDescriptor {
+                // bind group a:
+                // - cell state input: state a
+                // - cell state output: state b
                 layout: &bind_group_layout,
                 entries: &[
                     wgpu::BindGroupEntry {
@@ -222,10 +253,17 @@ impl<'a> State<'a> {
                         binding: 1,
                         resource: cell_state_storage_buffer_state_a.as_entire_binding(),
                     },
+                    wgpu::BindGroupEntry {
+                        binding: 2,
+                        resource: cell_state_storage_buffer_state_b.as_entire_binding(),
+                    },
                 ],
                 label: Some("Cell Renderer Bind Group A"),
             }),
             group_b: device.create_bind_group(&wgpu::BindGroupDescriptor {
+                // bind group b:
+                // - cell state input: state b
+                // - cell state output: state a
                 layout: &bind_group_layout,
                 entries: &[
                     wgpu::BindGroupEntry {
@@ -235,6 +273,10 @@ impl<'a> State<'a> {
                     wgpu::BindGroupEntry {
                         binding: 1,
                         resource: cell_state_storage_buffer_state_b.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 2,
+                        resource: cell_state_storage_buffer_state_a.as_entire_binding(),
                     },
                 ],
                 label: Some("Cell Renderer Bind Group B"),
@@ -247,9 +289,9 @@ impl<'a> State<'a> {
             source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(include_str!("shader.wgsl"))),
         });
 
-        let render_pipeline_layout =
+        let pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("Render Pipeline Layout"),
+                label: Some("Pipeline Layout"),
                 bind_group_layouts: &[&bind_group_layout],
                 push_constant_ranges: &[],
             });
@@ -257,9 +299,10 @@ impl<'a> State<'a> {
         let swapchain_capabilities = surface.get_capabilities(&adapter);
         let swapchain_format = swapchain_capabilities.formats[0];
 
+        // Create render pipeline
         let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: None,
-            layout: Some(&render_pipeline_layout),
+            layout: Some(&pipeline_layout),
             vertex: wgpu::VertexState {
                 module: &shader,
                 entry_point: "vs_main",
@@ -276,32 +319,37 @@ impl<'a> State<'a> {
             multiview: None,
         });
 
-        let config = surface
-            .get_default_config(&adapter, size.width, size.height)
-            .unwrap();
-        surface.configure(&device, &config);
+        // Create compute pipeline
+        let compute_pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+            label: None,
+            layout: Some(&pipeline_layout),
+            module: &shader,
+            entry_point: "cs_main",
+        });
+
 
         Self {
             window,
+            window_size,
             surface,
             device,
             queue,
             config,
-            size,
-            render_pipeline,
             vertex_buffer,
             bind_groups,
             step: 0,
+            render_pipeline,
+            compute_pipeline,
         }
     }
 
-    fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>) {
+    fn resize(&mut self, new_window_size: winit::dpi::PhysicalSize<u32>) {
         // winit will panic if the window is 0x0
-        if new_size.width > 0 && new_size.height > 0 {
+        if new_window_size.width > 0 && new_window_size.height > 0 {
             // Reconfigure the surface with the new size
-            self.size = new_size;
-            self.config.width = new_size.width;
-            self.config.height = new_size.height;
+            self.window_size = new_window_size;
+            self.config.width = new_window_size.width;
+            self.config.height = new_window_size.height;
             self.surface.configure(&self.device, &self.config);
             // On macos the window needs to be redrawn manually after resizing
             self.window.request_redraw();
@@ -329,10 +377,36 @@ impl<'a> State<'a> {
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("Render Encoder"),
             });
+        
+        // Compute Pass
+        {
+            let mut compute_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                label: Some("Compute Pass"),
+                timestamp_writes: None,
+            });
+            compute_pass.set_pipeline(&self.compute_pipeline);
 
+            let bind_group = if self.step % 2 == 0 {
+                &self.bind_groups.group_a
+            } else {
+                &self.bind_groups.group_b
+            };
+
+            compute_pass.set_bind_group(0, bind_group, &[]);
+            const WORKGROUP_SIZE: usize = 8;
+            let workgroup_count = (GRID_SIZE as f32 / WORKGROUP_SIZE as f32).ceil() as u32;
+
+            compute_pass.dispatch_workgroups(
+                workgroup_count,
+                workgroup_count,
+                1,
+            );
+        }
+
+        // Render Pass
         {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: None,
+                label: Some("Render Pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: &view,
                     resolve_target: None,
@@ -362,6 +436,8 @@ impl<'a> State<'a> {
             render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
             render_pass.draw(0..NUM_VERTICES, 0..NUM_SQUARE_INSTANCES);
         }
+
+        // submit command buffers for execution
         self.queue.submit(Some(encoder.finish()));
         output.present();
 
@@ -440,7 +516,7 @@ pub async fn run() {
                             match state.render() {
                                 Ok(_) => {}
                                 // Reconfigure the surface if lost
-                                Err(wgpu::SurfaceError::Lost) => state.resize(state.size),
+                                Err(wgpu::SurfaceError::Lost) => state.resize(state.window_size),
                                 // The system is out of memory, we should probably quit
                                 Err(wgpu::SurfaceError::OutOfMemory) => target.exit(),
                                 // All other errors (Outdated, Timeout) should be resolved by the next frame

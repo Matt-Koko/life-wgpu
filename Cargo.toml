@@ -17,6 +17,8 @@ winit = "0.29.15"
 pollster = "0.3.0"
 bytemuck = { version = "1.12.1", features = ["derive"] }
 instant = { version = "0.1.12", features = [ "wasm-bindgen" ] }
+rand = "0.8.5"
+getrandom = { version = "0.2.12", features = ["js"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 console_error_panic_hook = "0.1.6"

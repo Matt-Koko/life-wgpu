@@ -1,5 +1,6 @@
 @group(0) @binding(0) var<uniform> grid: vec2<f32>;
-@group(0) @binding(1) var<storage> cell_state: array<u32>;
+@group(0) @binding(1) var<storage> cell_state_in: array<u32>;
+@group(0) @binding(2) var<storage, read_write> cell_state_out: array<u32>;
 
 // Vertex shader
 
@@ -24,7 +25,7 @@ fn vs_main(
     let cell_offset = cell / grid * 2;
     output.cell = cell;
 
-    let state = f32(cell_state[input.instance]);
+    let state = f32(cell_state_in[input.instance]);
 
     let grid_pos = (input.position * state + 1) / grid - 1 + cell_offset;
     output.clip_position = vec4<f32>(grid_pos, 0.0, 1.0);
@@ -55,4 +56,19 @@ fn colourLampBrightness(cell_clipped: vec2<f32>, lamp_location: vec2<f32>) -> f3
     let distance_to_lamp = distance(cell_clipped, lamp_location);
     let brightness = 1 - distance_to_lamp;
     return brightness;
+}
+
+// Compute shader
+
+fn cell_index(cell: vec2<u32>) -> u32 {
+  return cell.y * u32(grid.x) + cell.x;
+}
+
+@compute @workgroup_size(8, 8)
+fn cs_main(@builtin(global_invocation_id) cell: vec3<u32>) {
+  if (cell_state_in[cell_index(cell.xy)] == 1) {
+    cell_state_out[cell_index(cell.xy)] = 0u;
+  } else {
+    cell_state_out[cell_index(cell.xy)] = 1u;
+  }
 }
