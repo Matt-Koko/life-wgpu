@@ -528,7 +528,7 @@ pub async fn run() {
                 }
             }
             Event::AboutToWait => {
-                const UPDATE_INTERVAL: u128 = 1000; // in milliseconds
+                const UPDATE_INTERVAL: u128 = 20; // in milliseconds
 
                 let now = Instant::now();
                 if now.duration_since(last_update_time).as_millis() >= UPDATE_INTERVAL {

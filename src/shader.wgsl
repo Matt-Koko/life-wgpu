@@ -45,14 +45,14 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
     let green_lamp_location = vec2<f32>(0.5, 1);
     let blue_lamp_location = vec2<f32>(1, 1.0/6.0);
 
-    let red_val = colourLampBrightness(cell_clipped, red_lamp_location);
-    let green_val = colourLampBrightness(cell_clipped, green_lamp_location);
-    let blue_val = colourLampBrightness(cell_clipped, blue_lamp_location);
+    let red_val = colour_lamp_brightness(cell_clipped, red_lamp_location);
+    let green_val = colour_lamp_brightness(cell_clipped, green_lamp_location);
+    let blue_val = colour_lamp_brightness(cell_clipped, blue_lamp_location);
 
     return vec4<f32>(red_val, green_val, blue_val, 1);
 }
 
-fn colourLampBrightness(cell_clipped: vec2<f32>, lamp_location: vec2<f32>) -> f32 {
+fn colour_lamp_brightness(cell_clipped: vec2<f32>, lamp_location: vec2<f32>) -> f32 {
     let distance_to_lamp = distance(cell_clipped, lamp_location);
     let brightness = 1 - distance_to_lamp;
     return brightness;
@@ -61,14 +61,38 @@ fn colourLampBrightness(cell_clipped: vec2<f32>, lamp_location: vec2<f32>) -> f3
 // Compute shader
 
 fn cell_index(cell: vec2<u32>) -> u32 {
-  return cell.y * u32(grid.x) + cell.x;
+    return (cell.y % u32(grid.y)) * u32(grid.x) +
+           (cell.x % u32(grid.x));
+}
+
+fn cell_active(x: u32, y: u32) -> u32 {
+    return cell_state_in[cell_index(vec2(x, y))];
 }
 
 @compute @workgroup_size(8, 8)
 fn cs_main(@builtin(global_invocation_id) cell: vec3<u32>) {
-  if (cell_state_in[cell_index(cell.xy)] == 1) {
-    cell_state_out[cell_index(cell.xy)] = 0u;
-  } else {
-    cell_state_out[cell_index(cell.xy)] = 1u;
-  }
+    // Determine how many active neighbors this cell has.
+    let active_neighbours = cell_active(cell.x+1, cell.y+1) +
+                          cell_active(cell.x+1, cell.y) +
+                          cell_active(cell.x+1, cell.y-1) +
+                          cell_active(cell.x, cell.y-1) +
+                          cell_active(cell.x-1, cell.y-1) +
+                          cell_active(cell.x-1, cell.y) +
+                          cell_active(cell.x-1, cell.y+1) +
+                          cell_active(cell.x, cell.y+1);
+
+    let i = cell_index(cell.xy);
+
+    // Conway's game of life rules:
+    switch active_neighbours {
+        case 2u: { // Active cells with 2 neighbors stay active.
+            cell_state_out[i] = cell_state_in[i];
+        }
+        case 3u: { // Cells with 3 neighbors become or stay active.
+            cell_state_out[i] = 1u;
+        }
+        default: { // Cells with < 2 or > 3 neighbors become inactive.
+            cell_state_out[i] = 0u;
+        }
+    }
 }
