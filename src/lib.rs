@@ -530,7 +530,7 @@ pub async fn run() {
                         } => target.exit(),
                         WindowEvent::Resized(physical_size) => {
                             state.resize(*physical_size);
-                        }
+                        },
                         WindowEvent::RedrawRequested => {
                             state.update();
                             match state.render() {
@@ -542,20 +542,23 @@ pub async fn run() {
                                 // All other errors (Outdated, Timeout) should be resolved by the next frame
                                 Err(e) => eprintln!("{:?}", e),
                             }
-                        }
+                        },
+                        // Capuring input this way works for both native and web.
+                        // However, for web, the canvas must be focused for the input to be captured.
                         WindowEvent::KeyboardInput {
                             event:
-                                winit::event::KeyEvent {
-                                    logical_key: winit::keyboard::Key::Character(c),
-                                    state: winit::event::ElementState::Pressed,
+                                KeyEvent {
+                                    state: ElementState::Pressed,
+                                    physical_key:
+                                        winit::keyboard::PhysicalKey::Code(
+                                            winit::keyboard::KeyCode::KeyR,
+                                        ),
                                     ..
                                 },
                             ..
                         } => {
-                            if c == "r" || c == "R" {
-                                state.randomise_grid();
-                            }
-                        }
+                            state.randomise_grid();
+                        },
                         _ => {}
                     }
                 }
