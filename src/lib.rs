@@ -532,6 +532,7 @@ pub async fn run() {
                         } => target.exit(),
                         // Capuring input this way works for both native and web.
                         // However, for web, the canvas must be focused for the input to be captured.
+                        // R - randomise grid
                         WindowEvent::KeyboardInput {
                             event:
                                 KeyEvent {
@@ -546,6 +547,7 @@ pub async fn run() {
                         } => {
                             state.randomise_grid();
                         }
+                        // P - pause/play
                         WindowEvent::KeyboardInput {
                             event:
                                 KeyEvent {
@@ -559,6 +561,23 @@ pub async fn run() {
                             ..
                         } => {
                             state.paused = !state.paused;
+                        }
+                        // S - step simulation
+                        WindowEvent::KeyboardInput {
+                            event:
+                                KeyEvent {
+                                    state: ElementState::Pressed,
+                                    physical_key:
+                                        winit::keyboard::PhysicalKey::Code(
+                                            winit::keyboard::KeyCode::KeyS,
+                                        ),
+                                    ..
+                                },
+                            ..
+                        } => {
+                            state.paused = true;
+                            state.window.request_redraw();
+                            last_update_time = Instant::now();
                         }
                         WindowEvent::Resized(physical_size) => {
                             state.resize(*physical_size);
@@ -581,7 +600,7 @@ pub async fn run() {
             }
             Event::AboutToWait => {
                 if state.paused == false {
-                    const UPDATE_INTERVAL: u128 = 1000; // in milliseconds
+                    const UPDATE_INTERVAL: u128 = 20; // in milliseconds
 
                     let now = Instant::now();
                     if now.duration_since(last_update_time).as_millis() >= UPDATE_INTERVAL {
