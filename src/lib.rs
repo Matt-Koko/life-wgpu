@@ -82,8 +82,8 @@ impl CellState {
         let mut grid_a = [0; GRID_SIZE * GRID_SIZE];
         let mut rng = rand::thread_rng();
 
-        for i in 0..GRID_SIZE * GRID_SIZE {
-            grid_a[i] = rng.gen_range(0..=1);
+        for cell in grid_a.iter_mut().take(GRID_SIZE * GRID_SIZE) {
+            *cell = rng.gen_range(0..=1);
         }
 
         let grid_b = [0; GRID_SIZE * GRID_SIZE];
