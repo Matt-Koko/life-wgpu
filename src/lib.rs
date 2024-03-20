@@ -111,6 +111,7 @@ struct State<'a> {
     vertex_buffer: wgpu::Buffer,
     bind_groups: BindGroups,
     step: u32, // how many simulation steps have been run
+    paused: bool, // whether the simulation is paused
     render_pipeline: wgpu::RenderPipeline,
     compute_pipeline: wgpu::ComputePipeline,
     cell_state_storage_buffer_state_a: wgpu::Buffer,
@@ -333,6 +334,7 @@ impl<'a> State<'a> {
             vertex_buffer,
             bind_groups,
             step: 0,
+            paused: false,
             render_pipeline,
             compute_pipeline,
             cell_state_storage_buffer_state_a,
@@ -544,6 +546,20 @@ pub async fn run() {
                         } => {
                             state.randomise_grid();
                         }
+                        WindowEvent::KeyboardInput {
+                            event:
+                                KeyEvent {
+                                    state: ElementState::Pressed,
+                                    physical_key:
+                                        winit::keyboard::PhysicalKey::Code(
+                                            winit::keyboard::KeyCode::KeyP,
+                                        ),
+                                    ..
+                                },
+                            ..
+                        } => {
+                            state.paused = !state.paused;
+                        }
                         WindowEvent::Resized(physical_size) => {
                             state.resize(*physical_size);
                         }
@@ -564,19 +580,22 @@ pub async fn run() {
                 }
             }
             Event::AboutToWait => {
-                const UPDATE_INTERVAL: u128 = 20; // in milliseconds
+                if state.paused == false {
+                    const UPDATE_INTERVAL: u128 = 1000; // in milliseconds
 
-                let now = Instant::now();
-                if now.duration_since(last_update_time).as_millis() >= UPDATE_INTERVAL {
-                    // Draw the next frame of the simulation
-                    state.window.request_redraw();
+                    let now = Instant::now();
+                    if now.duration_since(last_update_time).as_millis() >= UPDATE_INTERVAL {
+                        // Draw the next frame of the simulation
+                        state.window.request_redraw();
 
-                    last_update_time = now;
+                        last_update_time = now;
+                    }
+
+                    // When the event loop finishes, immediately begin a new iteration.
+                    // This is needed to prevent the event loop from idling.
+                    // Note: This only occurs while the simulation is not paused.
+                    target.set_control_flow(winit::event_loop::ControlFlow::Poll);
                 }
-
-                // When the event loop finishes, immediately begin a new iteration.
-                // This is needed to prevent the event loop from idling.
-                target.set_control_flow(winit::event_loop::ControlFlow::Poll);
             }
             _ => {}
         })
