@@ -1,10 +1,11 @@
-use instant::Instant;
-use std::borrow::Cow;
 #[allow(unused_imports)]
 use tracing::{error, info, warn};
+use instant::Instant;
+use std::borrow::Cow;
+use winit::{event::*, event_loop::EventLoop, window::Window};
+use wgpu::util::DeviceExt;
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
-use winit::{event::*, event_loop::EventLoop, window::Window};
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
@@ -51,7 +52,7 @@ const VERTICES: &[Vertex] = &[
 const NUM_VERTICES: u32 = VERTICES.len() as u32;
 const NUM_SQUARE_INSTANCES: u32 = (GRID_SIZE * GRID_SIZE) as u32;
 
-const GRID_SIZE: usize = 32;
+const GRID_SIZE: usize = 64;
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
@@ -69,12 +70,12 @@ impl GridSizeUniform {
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
-struct CellStateStorage {
+struct CellState {
     state_a: [u32; GRID_SIZE * GRID_SIZE],
     state_b: [u32; GRID_SIZE * GRID_SIZE],
 }
 
-impl CellStateStorage {
+impl CellState {
     fn new() -> Self {
         use rand::Rng;
 
@@ -86,7 +87,7 @@ impl CellStateStorage {
         }
 
         let grid_b = [0; GRID_SIZE * GRID_SIZE];
-        
+
         Self {
             state_a: grid_a,
             state_b: grid_b,
@@ -112,12 +113,12 @@ struct State<'a> {
     step: u32, // how many simulation steps have been run
     render_pipeline: wgpu::RenderPipeline,
     compute_pipeline: wgpu::ComputePipeline,
+    cell_state_storage_buffer_state_a: wgpu::Buffer,
+    cell_state_storage_buffer_state_b: wgpu::Buffer,
 }
 
 impl<'a> State<'a> {
     async fn new(window: &'a Window) -> Self {
-        use wgpu::util::DeviceExt;
-
         let mut window_size = window.inner_size();
         window_size.width = window_size.width.max(1);
         window_size.height = window_size.height.max(1);
@@ -176,20 +177,17 @@ impl<'a> State<'a> {
             });
 
         // Create cell state storage buffer
-        // todo we use ping pong buffers here
-
-        // todo can we use         self.queue.write_buffer(buffer, offset, data)
-        let cell_state_storage = CellStateStorage::new();
+        let cell_state = CellState::new();
         let cell_state_storage_buffer_state_a =
             device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some("Cell State Storage Buffer A"),
-                contents: bytemuck::cast_slice(&[cell_state_storage.state_a]),
+                contents: bytemuck::cast_slice(&[cell_state.state_a]),
                 usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
             });
         let cell_state_storage_buffer_state_b =
             device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some("Cell State Storage Buffer B"),
-                contents: bytemuck::cast_slice(&[cell_state_storage.state_b]),
+                contents: bytemuck::cast_slice(&[cell_state.state_b]),
                 usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
             });
 
@@ -198,9 +196,9 @@ impl<'a> State<'a> {
                 wgpu::BindGroupLayoutEntry {
                     binding: 0,
                     visibility: wgpu::ShaderStages::from_iter(
-                        wgpu::ShaderStages::VERTEX | 
-                        wgpu::ShaderStages::FRAGMENT | 
-                        wgpu::ShaderStages::COMPUTE
+                        wgpu::ShaderStages::VERTEX
+                            | wgpu::ShaderStages::FRAGMENT
+                            | wgpu::ShaderStages::COMPUTE,
                     ),
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
@@ -209,11 +207,11 @@ impl<'a> State<'a> {
                     },
                     count: None,
                 },
-                wgpu::BindGroupLayoutEntry { // cell state input buffer (read only)
+                wgpu::BindGroupLayoutEntry {
+                    // cell state input buffer (read only)
                     binding: 1,
                     visibility: wgpu::ShaderStages::from_iter(
-                        wgpu::ShaderStages::VERTEX | 
-                        wgpu::ShaderStages::COMPUTE
+                        wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::COMPUTE,
                     ),
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Storage { read_only: true },
@@ -222,11 +220,10 @@ impl<'a> State<'a> {
                     },
                     count: None,
                 },
-                wgpu::BindGroupLayoutEntry { // cell state output buffer (read-write)
+                wgpu::BindGroupLayoutEntry {
+                    // cell state output buffer (read-write)
                     binding: 2,
-                    visibility: wgpu::ShaderStages::from_iter(
-                        wgpu::ShaderStages::COMPUTE
-                    ),
+                    visibility: wgpu::ShaderStages::from_iter(wgpu::ShaderStages::COMPUTE),
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Storage { read_only: false },
                         has_dynamic_offset: false,
@@ -289,12 +286,11 @@ impl<'a> State<'a> {
             source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(include_str!("shader.wgsl"))),
         });
 
-        let pipeline_layout =
-            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("Pipeline Layout"),
-                bind_group_layouts: &[&bind_group_layout],
-                push_constant_ranges: &[],
-            });
+        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("Pipeline Layout"),
+            bind_group_layouts: &[&bind_group_layout],
+            push_constant_ranges: &[],
+        });
 
         let swapchain_capabilities = surface.get_capabilities(&adapter);
         let swapchain_format = swapchain_capabilities.formats[0];
@@ -327,7 +323,6 @@ impl<'a> State<'a> {
             entry_point: "cs_main",
         });
 
-
         Self {
             window,
             window_size,
@@ -340,6 +335,8 @@ impl<'a> State<'a> {
             step: 0,
             render_pipeline,
             compute_pipeline,
+            cell_state_storage_buffer_state_a,
+            cell_state_storage_buffer_state_b,
         }
     }
 
@@ -362,7 +359,7 @@ impl<'a> State<'a> {
     }
 
     fn update(&mut self) {
-        // todo!()
+        // if we need to update state, we can do so here
     }
 
     fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
@@ -378,6 +375,9 @@ impl<'a> State<'a> {
                 label: Some("Render Encoder"),
             });
         
+        // In general, You want to do the compute pass before the render pass because it allows 
+        // the render pass to immediately use the latest results from the compute pass.
+
         // Compute Pass
         {
             let mut compute_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
@@ -396,12 +396,12 @@ impl<'a> State<'a> {
             const WORKGROUP_SIZE: usize = 8;
             let workgroup_count = (GRID_SIZE as f32 / WORKGROUP_SIZE as f32).ceil() as u32;
 
-            compute_pass.dispatch_workgroups(
-                workgroup_count,
-                workgroup_count,
-                1,
-            );
+            compute_pass.dispatch_workgroups(workgroup_count, workgroup_count, 1);
         }
+
+        // We increment the step count between the compute pass and render pass so that the 
+        // output buffer of the compute pipeline becomes the input buffer for the render pipeline.
+        self.step += 1;
 
         // Render Pass
         {
@@ -442,6 +442,26 @@ impl<'a> State<'a> {
         output.present();
 
         Ok(())
+    }
+
+    fn randomise_grid(&mut self) {
+        // Reset the step counter
+        self.step = 0;
+
+        // Initialise new cell state
+        let new_cell_state = CellState::new();
+
+        // Write the new cell states into the buffers
+        self.queue.write_buffer(
+            &self.cell_state_storage_buffer_state_a,
+            0,
+            bytemuck::cast_slice(&[new_cell_state.state_a]),
+        );
+        self.queue.write_buffer(
+            &self.cell_state_storage_buffer_state_b,
+            0,
+            bytemuck::cast_slice(&[new_cell_state.state_b]),
+        );
     }
 }
 
@@ -523,6 +543,19 @@ pub async fn run() {
                                 Err(e) => eprintln!("{:?}", e),
                             }
                         }
+                        WindowEvent::KeyboardInput {
+                            event:
+                                winit::event::KeyEvent {
+                                    logical_key: winit::keyboard::Key::Character(c),
+                                    state: winit::event::ElementState::Pressed,
+                                    ..
+                                },
+                            ..
+                        } => {
+                            if c == "r" || c == "R" {
+                                state.randomise_grid();
+                            }
+                        }
                         _ => {}
                     }
                 }
@@ -533,7 +566,6 @@ pub async fn run() {
                 let now = Instant::now();
                 if now.duration_since(last_update_time).as_millis() >= UPDATE_INTERVAL {
                     // Draw the next frame of the simulation
-                    state.step += 1;
                     state.window.request_redraw();
 
                     last_update_time = now;
