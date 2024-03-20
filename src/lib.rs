@@ -1,11 +1,11 @@
-#[allow(unused_imports)]
-use tracing::{error, info, warn};
 use instant::Instant;
 use std::borrow::Cow;
-use winit::{event::*, event_loop::EventLoop, window::Window};
-use wgpu::util::DeviceExt;
+#[allow(unused_imports)]
+use tracing::{error, info, warn};
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
+use wgpu::util::DeviceExt;
+use winit::{event::*, event_loop::EventLoop, window::Window};
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
@@ -374,8 +374,8 @@ impl<'a> State<'a> {
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("Render Encoder"),
             });
-        
-        // In general, You want to do the compute pass before the render pass because it allows 
+
+        // In general, You want to do the compute pass before the render pass because it allows
         // the render pass to immediately use the latest results from the compute pass.
 
         // Compute Pass
@@ -399,7 +399,7 @@ impl<'a> State<'a> {
             compute_pass.dispatch_workgroups(workgroup_count, workgroup_count, 1);
         }
 
-        // We increment the step count between the compute pass and render pass so that the 
+        // We increment the step count between the compute pass and render pass so that the
         // output buffer of the compute pipeline becomes the input buffer for the render pipeline.
         self.step += 1;
 
@@ -528,21 +528,6 @@ pub async fn run() {
                                 },
                             ..
                         } => target.exit(),
-                        WindowEvent::Resized(physical_size) => {
-                            state.resize(*physical_size);
-                        },
-                        WindowEvent::RedrawRequested => {
-                            state.update();
-                            match state.render() {
-                                Ok(_) => {}
-                                // Reconfigure the surface if lost
-                                Err(wgpu::SurfaceError::Lost) => state.resize(state.window_size),
-                                // The system is out of memory, we should probably quit
-                                Err(wgpu::SurfaceError::OutOfMemory) => target.exit(),
-                                // All other errors (Outdated, Timeout) should be resolved by the next frame
-                                Err(e) => eprintln!("{:?}", e),
-                            }
-                        },
                         // Capuring input this way works for both native and web.
                         // However, for web, the canvas must be focused for the input to be captured.
                         WindowEvent::KeyboardInput {
@@ -558,7 +543,22 @@ pub async fn run() {
                             ..
                         } => {
                             state.randomise_grid();
-                        },
+                        }
+                        WindowEvent::Resized(physical_size) => {
+                            state.resize(*physical_size);
+                        }
+                        WindowEvent::RedrawRequested => {
+                            state.update();
+                            match state.render() {
+                                Ok(_) => {}
+                                // Reconfigure the surface if lost
+                                Err(wgpu::SurfaceError::Lost) => state.resize(state.window_size),
+                                // The system is out of memory, we should probably quit
+                                Err(wgpu::SurfaceError::OutOfMemory) => target.exit(),
+                                // All other errors (Outdated, Timeout) should be resolved by the next frame
+                                Err(e) => eprintln!("{:?}", e),
+                            }
+                        }
                         _ => {}
                     }
                 }
