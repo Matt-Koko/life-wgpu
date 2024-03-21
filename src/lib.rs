@@ -137,6 +137,9 @@ impl<'a> State<'a> {
             .await
             .expect("Failed to find an appropriate adapter");
 
+        let surface_capabilities = surface.get_capabilities(&adapter);
+        let texture_format = surface_capabilities.formats[0];
+
         // Create the logical device and command queue
         let (device, queue) = adapter
             .request_device(
@@ -156,9 +159,33 @@ impl<'a> State<'a> {
             .await
             .expect("Failed to create device");
 
-        let config = surface
-            .get_default_config(&adapter, window_size.width, window_size.height)
-            .unwrap();
+
+        // Set the alpha mode to support a transparent window/canvas
+        #[cfg(target_arch = "wasm32")]
+        let alpha_mode = wgpu::CompositeAlphaMode::PreMultiplied;
+
+        #[cfg(not(target_arch = "wasm32"))]
+        let alpha_mode = {
+            use wgpu::CompositeAlphaMode;
+            let supported_alpha_modes = surface_capabilities.alpha_modes;
+                        
+            if supported_alpha_modes.contains(&CompositeAlphaMode::PreMultiplied) {
+                CompositeAlphaMode::PreMultiplied
+            } else if supported_alpha_modes.contains(&CompositeAlphaMode::PostMultiplied) {
+                CompositeAlphaMode::PostMultiplied
+            } else {
+                CompositeAlphaMode::Opaque
+            }
+        };
+        
+        // Use default surface configurations, except for the alpha mode which defaults to opaque
+        let config = wgpu::SurfaceConfiguration {
+            alpha_mode,
+            ..surface
+                .get_default_config(&adapter, window_size.width, window_size.height)
+                .unwrap()
+        };
+        
         surface.configure(&device, &config);
 
         // Create the vertex buffer
@@ -293,9 +320,6 @@ impl<'a> State<'a> {
             push_constant_ranges: &[],
         });
 
-        let swapchain_capabilities = surface.get_capabilities(&adapter);
-        let swapchain_format = swapchain_capabilities.formats[0];
-
         // Create render pipeline
         let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: None,
@@ -308,7 +332,11 @@ impl<'a> State<'a> {
             fragment: Some(wgpu::FragmentState {
                 module: &shader,
                 entry_point: "fs_main",
-                targets: &[Some(swapchain_format.into())],
+                targets: &[Some(wgpu::ColorTargetState {
+                    format: texture_format,
+                    blend: Some(wgpu::BlendState::ALPHA_BLENDING),
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
             }),
             primitive: wgpu::PrimitiveState::default(),
             depth_stencil: None,
@@ -414,10 +442,10 @@ impl<'a> State<'a> {
                     resolve_target: None,
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(wgpu::Color {
-                            r: 32.0 / 255.0,
-                            g: 32.0 / 255.0,
-                            b: 32.0 / 255.0,
-                            a: 1.0,
+                            r: 0.0,
+                            g: 0.0,
+                            b: 0.0,
+                            a: 0.5,
                         }),
                         store: wgpu::StoreOp::Store,
                     },
@@ -486,7 +514,9 @@ pub async fn run() {
     let event_loop = EventLoop::new().unwrap();
 
     #[allow(unused_mut)]
-    let mut builder = winit::window::WindowBuilder::new();
+    let mut builder = winit::window::WindowBuilder::new()
+        .with_title("Life wgpu")
+        .with_transparent(true);
 
     #[cfg(target_arch = "wasm32")]
     {
@@ -502,8 +532,7 @@ pub async fn run() {
             .expect("Failed to get canvas");
         builder = builder.with_canvas(Some(canvas));
     }
-    let window = builder.build(&event_loop).unwrap();
-    window.set_title("Life wgpu");
+    let window = builder.build(&event_loop).expect("Failed to build window");
 
     let mut state = State::new(&window).await;
 

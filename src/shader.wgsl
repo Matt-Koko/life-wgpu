@@ -41,15 +41,15 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
     // Colors are in the range 0 to 1. So we divide cell position by grid.
     let cell_clipped = input.cell / grid;
 
-    let red_lamp_location = vec2<f32>(0, 1.0/6.0);
-    let green_lamp_location = vec2<f32>(0.5, 1);
-    let blue_lamp_location = vec2<f32>(1, 1.0/6.0);
+    let red_lamp_location   = vec2<f32>(0.0, 1.0/6.0);
+    let green_lamp_location = vec2<f32>(0.5, 1.0);
+    let blue_lamp_location  = vec2<f32>(1.0, 1.0/6.0);
 
     let red_val = colour_lamp_brightness(cell_clipped, red_lamp_location);
     let green_val = colour_lamp_brightness(cell_clipped, green_lamp_location);
     let blue_val = colour_lamp_brightness(cell_clipped, blue_lamp_location);
 
-    return vec4<f32>(red_val, green_val, blue_val, 1);
+    return vec4<f32>(red_val, green_val, blue_val, 1.0);
 }
 
 fn colour_lamp_brightness(cell_clipped: vec2<f32>, lamp_location: vec2<f32>) -> f32 {

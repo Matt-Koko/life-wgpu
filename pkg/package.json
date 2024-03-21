@@ -1,0 +1,14 @@
+{
+  "name": "life-wgpu",
+  "version": "0.1.0",
+  "files": [
+    "life_wgpu_bg.wasm",
+    "life_wgpu.js",
+    "life_wgpu.d.ts"
+  ],
+  "module": "life_wgpu.js",
+  "types": "life_wgpu.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}
