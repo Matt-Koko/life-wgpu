@@ -9,41 +9,139 @@
     <link rel="icon" type="image/png" href="./icon.png">
     <style>
         body {
-            background: rgb(0,0,0);
-            background: linear-gradient(0deg, rgba(0,0,0,1) 0%, rgba(0,0,36,1) 23%, rgba(9,9,121,1) 48%, rgba(0,212,255,1) 100%);
+            top: 0;
+            left: 0;
+            margin: 0;
+            background: linear-gradient(0deg, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 36, 1) 23%, rgba(9, 9, 121, 1) 48%, rgba(0, 212, 255, 1) 100%);
             color: white;
+            height: 100vh;
+            font-family: 'Iosevka', monospace;
+        }
+
+        .main-container {
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            height: 100vh;
-            margin: 0;
-            font-family: 'Iosevka', monospace;
+            height: 100%;
+            width: 100%;
         }
+
         canvas#life-wgpu {
             background-color: transparent;
             width: 80vh;
             height: 80vh;
         }
+
         canvas#life-wgpu:focus {
             outline: none;
         }
+
         h1 {
             font-size: 10vh;
             margin: 0;
+        }
+
+        .triangle {
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 0;
+            height: 0;
+            border-top: 50px solid rgba(0, 0, 0, 0.5);
+            border-right: 50px solid rgba(0, 0, 0, 0.5);
+            border-bottom: 50px solid transparent;
+            border-left: 50px solid transparent;
+        }
+
+        .question-mark {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            font-size: 30px;
+            color: white;
+            cursor: pointer;
+        }
+
+        .info-modal {
+            position: absolute;
+            height: 100vh;
+            width: 100vw;
+            top: 0;
+            left: 0;
+            margin: 0;
+            background-color: rgba(0, 0, 0, 0.5);
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 1s, visibility 1s;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .info-modal.show {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .info-content {
+            background-color: transparent;
+            border: 3px solid white;
+            width: calc(80vh - 6px);
+            height: calc(80vh - 6px);
         }
     </style>
 </head>
 
 <body>
-    <h1>LIFE WGPU</h1>
+    <div class="main-container">
+        <h1>LIFE WGPU</h1>
+        <canvas id="life-wgpu"></canvas>
+    </div>
+    <div class="triangle"></div>
+    <i class="question-mark fa-regular fa-circle-question"></i>
 
-    <canvas id="life-wgpu"></canvas>
+    <div class="info-modal">
+        <h1>LIFE WGPU</h1>
+        <div class="info-content">
+            <p>oewifnowe inowefi nweoi nwefoi newo nwefo</p>
+        </div>
+    </div>
 
     <script type="module">
-        import init from "./pkg/life_wgpu.js";
-        init().then(() => {
-            console.log("WASM Loaded");
+        async function loadWasm() {
+            try {
+                const { default: init } = await import("./pkg/life_wgpu.js");
+                await init();
+            } catch (e) {
+                const { default: init } = await import("./api/wasm.js");
+                await init("/api/wasm.wasm");
+            }
+        }
+    
+        loadWasm();
+    
+        const questionMark = document.querySelector('.question-mark');
+        const infoModal = document.querySelector('.info-modal');
+        const canvas = document.getElementById('life-wgpu');
+    
+        questionMark.addEventListener('click', () => {
+            infoModal.classList.add('show');
+        });
+    
+        infoModal.addEventListener('click', () => {
+            infoModal.classList.remove('show');
+        });
+    
+        // Canvas must be in focus to receive keyboard events.
+        // So we keep the canvas in focus all the time.
+        window.addEventListener('click', (e) => {
+            canvas.focus();
+        });
+    
+        window.addEventListener('keydown', (e) => {
+            canvas.focus();
         });
     </script>
 </body>

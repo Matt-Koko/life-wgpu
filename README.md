@@ -13,7 +13,7 @@ todo!();
 ### Run locally:
 Set environment variable to use custom index.html:
 ```bash
-export WASM_SERVER_RUNNER_CUSTOM_INDEX_HTML="./src/in_dev.html"
+export WASM_SERVER_RUNNER_CUSTOM_INDEX_HTML="./index.html"
 ```
 
 In browser:
