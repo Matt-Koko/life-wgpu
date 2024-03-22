@@ -1,0 +1,100 @@
+body {
+    top: 0;
+    left: 0;
+    margin: 0;
+    background: linear-gradient(0deg, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 36, 1) 23%, rgba(9, 9, 121, 1) 48%, rgba(0, 212, 255, 1) 100%);
+    color: white;
+    height: 100vh;
+    font-family: 'Iosevka', monospace;
+}
+
+.main-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    width: 100%;
+}
+
+canvas#life-wgpu {
+    background-color: transparent;
+    width: 80vh;
+    height: 80vh;
+}
+
+canvas#life-wgpu:focus {
+    outline: none;
+}
+
+h1 {
+    font-size: 10vh;
+    margin: 0;
+}
+
+a:link {
+    color: aquamarine;
+}
+
+a:visited {
+    color: pink;
+}
+
+.triangle {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 0;
+    height: 0;
+    border-top: 50px solid rgba(0, 0, 0, 0.5);
+    border-right: 50px solid rgba(0, 0, 0, 0.5);
+    border-bottom: 50px solid transparent;
+    border-left: 50px solid transparent;
+}
+
+.question-mark {
+    position: absolute;
+    top: 15px;
+    right: 15px;
+    font-size: 30px;
+    color: white;
+    cursor: pointer;
+}
+
+.info-modal {
+    position: absolute;
+    height: 100vh;
+    width: 100vw;
+    top: 0;
+    left: 0;
+    margin: 0;
+    background-color: rgba(0, 0, 0, 0.5);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 1s, visibility 1s;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.info-modal.show {
+    opacity: 1;
+    visibility: visible;
+}
+
+.info-content {
+    background-color: rgba(0, 0, 0, 0.7);
+    font-size: 2vh;
+    background-color: transparent;
+    border: 3px solid white;
+    padding: 40px;
+    /* we want the final dimensions to be 80vh, so we account for the padding and border */
+    /* 2 * padding(20px) + 2 * border(3px) = 46px */
+    width: calc(80vh - 86px);
+    height: calc(80vh - 86px);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
