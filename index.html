@@ -42,6 +42,14 @@
             margin: 0;
         }
 
+        a:link {
+            color: aquamarine;
+        }
+
+        a:visited {
+            color: pink;
+        }
+
         .triangle {
             position: absolute;
             top: 0;
@@ -86,10 +94,19 @@
         }
 
         .info-content {
+            background-color: rgba(0, 0, 0, 0.7);
+            font-size: 2vh;
             background-color: transparent;
             border: 3px solid white;
-            width: calc(80vh - 6px);
-            height: calc(80vh - 6px);
+            padding: 40px;
+            /* we want the final dimensions to be 80vh, so we account for the padding and border */
+            /* 2 * padding(20px) + 2 * border(3px) = 46px */
+            width: calc(80vh - 86px);
+            height: calc(80vh - 86px);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
         }
     </style>
 </head>
@@ -105,7 +122,28 @@
     <div class="info-modal">
         <h1>LIFE WGPU</h1>
         <div class="info-content">
-            <p>oewifnowe inowefi nweoi nwefoi newo nwefo</p>
+            <p>This is an implementation of <a href="https://en.wikipedia.org/wiki/Conway%27s_Game_of_Life">Conway's
+                    Game of Life</a> running on your GPU!</p>
+            <p>Controls:
+                <br />R - randomise grid
+                <br />P - pause/play
+                <br />S - step simulation
+                <br />C - clear grid
+                <br />Mouse - toggle cells
+            </p>
+            <p>This app was built with <a href="https://wgpu.rs/">wgpu</a>, a library which allows us to create graphics
+                and compute pipelines on the GPU using
+                Rust code. Wgpu is able to run both natively and in the browser through <a
+                    href="https://webassembly.org/">Webassembly</a> and <a
+                    href="https://en.wikipedia.org/wiki/WebGPU">WebGPU</a>.</p>
+            <p>WebGPU is the future of graphics on the web, with every major browser either already supporting the spec
+                or <a href="https://caniuse.com/webgpu">working on an implementation</a>.</p>
+            <p>Since wgpu is based on the WebGPU spec, I was able to follow this <a
+                    href="https://codelabs.developers.google.com/your-first-webgpu-app">Google CodeLabs tutorial</a> to
+                better understand graphics programming and use as the basis for the simulation implementation.</p>
+            <p>Check out the <a href="https://github.com/Matt-Koko/life-wgpu">source code</a> on GitHub.</p>
+            <p>&copy; Matt Koko 2024, MIT Licence</p>
+            <p><i>In memory of John Conway (1937-2020)</i></p>
         </div>
     </div>
 
@@ -123,27 +161,27 @@
                 console.log("Loaded wasm from package files.\nDon't mind the above 404 :)");
             }
         }
-    
+
         loadWasm();
-    
+
         const questionMark = document.querySelector('.question-mark');
         const infoModal = document.querySelector('.info-modal');
         const canvas = document.getElementById('life-wgpu');
-    
+
         questionMark.addEventListener('click', () => {
             infoModal.classList.add('show');
         });
-    
+
         infoModal.addEventListener('click', () => {
             infoModal.classList.remove('show');
         });
-    
+
         // Canvas must be in focus to receive keyboard events.
         // So we keep the canvas in focus all the time.
         window.addEventListener('click', (e) => {
             canvas.focus();
         });
-    
+
         window.addEventListener('keydown', (e) => {
             canvas.focus();
         });
