@@ -75,18 +75,26 @@ struct CellState {
     state_b: [u32; GRID_SIZE * GRID_SIZE],
 }
 
+#[derive(PartialEq)]
+enum InitialCellState {
+    Random,
+    Empty,
+}
+
 impl CellState {
-    fn new() -> Self {
+    fn new(init: InitialCellState) -> Self {
         use rand::Rng;
 
         let mut grid_a = [0; GRID_SIZE * GRID_SIZE];
-        let mut rng = rand::thread_rng();
-
-        for cell in grid_a.iter_mut().take(GRID_SIZE * GRID_SIZE) {
-            *cell = rng.gen_range(0..=1);
-        }
-
         let grid_b = [0; GRID_SIZE * GRID_SIZE];
+        
+        if init == InitialCellState::Random {
+            let mut rng = rand::thread_rng();
+
+            for cell in grid_a.iter_mut().take(GRID_SIZE * GRID_SIZE) {
+                *cell = rng.gen_range(0..=1);
+            }
+        }
 
         Self {
             state_a: grid_a,
@@ -112,6 +120,7 @@ struct State<'a> {
     bind_groups: BindGroups,
     step: u32, // how many simulation steps have been run
     paused: bool, // whether the simulation is paused
+    update_interval: u128, // how many milliseconds between simulation steps
     render_pipeline: wgpu::RenderPipeline,
     compute_pipeline: wgpu::ComputePipeline,
     cell_state_storage_buffer_state_a: wgpu::Buffer,
@@ -205,7 +214,7 @@ impl<'a> State<'a> {
             });
 
         // Create cell state storage buffer
-        let cell_state = CellState::new();
+        let cell_state = CellState::new(InitialCellState::Random);
         let cell_state_storage_buffer_state_a =
             device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some("Cell State Storage Buffer A"),
@@ -363,6 +372,7 @@ impl<'a> State<'a> {
             bind_groups,
             step: 0,
             paused: false,
+            update_interval: 100,
             render_pipeline,
             compute_pipeline,
             cell_state_storage_buffer_state_a,
@@ -474,12 +484,12 @@ impl<'a> State<'a> {
         Ok(())
     }
 
-    fn randomise_grid(&mut self) {
+    fn reset_cell_state(&mut self, init: InitialCellState) {
         // Reset the step counter
         self.step = 0;
 
         // Initialise new cell state
-        let new_cell_state = CellState::new();
+        let new_cell_state = CellState::new(init);
 
         // Write the new cell states into the buffers
         self.queue.write_buffer(
@@ -574,7 +584,30 @@ pub async fn run() {
                                 },
                             ..
                         } => {
-                            state.randomise_grid();
+                            state.reset_cell_state(InitialCellState::Random);
+                            if state.paused {
+                                state.window.request_redraw();
+                                last_update_time = Instant::now();
+                            }
+                        }
+                        // C - clear grid
+                        WindowEvent::KeyboardInput {
+                            event:
+                                KeyEvent {
+                                    state: ElementState::Pressed,
+                                    physical_key:
+                                        winit::keyboard::PhysicalKey::Code(
+                                            winit::keyboard::KeyCode::KeyC,
+                                        ),
+                                    ..
+                                },
+                            ..
+                        } => {
+                            state.reset_cell_state(InitialCellState::Empty);
+                            if state.paused {
+                                state.window.request_redraw();
+                                last_update_time = Instant::now();
+                            }
                         }
                         // P - pause/play
                         WindowEvent::KeyboardInput {
@@ -591,7 +624,39 @@ pub async fn run() {
                         } => {
                             state.paused = !state.paused;
                         }
-                        // S - step simulation
+                        // N - next frame
+                        WindowEvent::KeyboardInput {
+                            event:
+                                KeyEvent {
+                                    state: ElementState::Pressed,
+                                    physical_key:
+                                        winit::keyboard::PhysicalKey::Code(
+                                            winit::keyboard::KeyCode::KeyN,
+                                        ),
+                                    ..
+                                },
+                            ..
+                        } => {
+                            state.paused = true;
+                            state.window.request_redraw();
+                            last_update_time = Instant::now();
+                        }
+                        // F - faster speed
+                        WindowEvent::KeyboardInput {
+                            event:
+                                KeyEvent {
+                                    state: ElementState::Pressed,
+                                    physical_key:
+                                        winit::keyboard::PhysicalKey::Code(
+                                            winit::keyboard::KeyCode::KeyF,
+                                        ),
+                                    ..
+                                },
+                            ..
+                        } => {
+                            state.update_interval = (state.update_interval as f64 * 0.8) as u128;
+                        }
+                        // S - slower speed
                         WindowEvent::KeyboardInput {
                             event:
                                 KeyEvent {
@@ -604,9 +669,7 @@ pub async fn run() {
                                 },
                             ..
                         } => {
-                            state.paused = true;
-                            state.window.request_redraw();
-                            last_update_time = Instant::now();
+                            state.update_interval = (state.update_interval as f64 * 1.2) as u128;
                         }
                         WindowEvent::Resized(physical_size) => {
                             state.resize(*physical_size);
@@ -629,10 +692,8 @@ pub async fn run() {
             }
             Event::AboutToWait => {
                 if state.paused == false {
-                    const UPDATE_INTERVAL: u128 = 20; // in milliseconds
-
                     let now = Instant::now();
-                    if now.duration_since(last_update_time).as_millis() >= UPDATE_INTERVAL {
+                    if now.duration_since(last_update_time).as_millis() >= state.update_interval {
                         // Draw the next frame of the simulation
                         state.window.request_redraw();
 
