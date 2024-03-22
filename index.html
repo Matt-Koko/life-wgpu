@@ -112,11 +112,15 @@
     <script type="module">
         async function loadWasm() {
             try {
-                const { default: init } = await import("./pkg/life_wgpu.js");
-                await init();
-            } catch (e) {
+                // Try to load wasm from wasm-server-runner first (for in-dev hot-reloading).
                 const { default: init } = await import("./api/wasm.js");
                 await init("/api/wasm.wasm");
+                console.log("Loaded wasm from wasm-server-runner.");
+            } catch (e) {
+                // If wasm-server-runner fails, load wasm from local build (for prod).
+                const { default: init } = await import("./pkg/life_wgpu.js");
+                await init();
+                console.log("Loaded wasm from package files.\nDon't mind the above 404 :)");
             }
         }
     
