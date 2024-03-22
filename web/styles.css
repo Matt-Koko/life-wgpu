@@ -1,3 +1,30 @@
+@font-face {
+	font-family: 'Iosevka';
+	font-display: swap;
+	font-weight: 400;
+	font-stretch: normal;
+	font-style: normal;
+	src: url('TTF/Iosevka-Regular.ttf') format('truetype');
+}
+
+@font-face {
+	font-family: 'Iosevka';
+	font-display: swap;
+	font-weight: 400;
+	font-stretch: normal;
+	font-style: italic;
+	src: url('fonts/Iosevka-Italic.ttf') format('truetype');
+}
+
+@font-face {
+	font-family: 'Iosevka';
+	font-display: swap;
+	font-weight: 700;
+	font-stretch: normal;
+	font-style: normal;
+	src: url('fonts/Iosevka-Bold.ttf') format('truetype');
+}
+
 body {
     top: 0;
     left: 0;
