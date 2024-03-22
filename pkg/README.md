@@ -1,19 +1,18 @@
-<style>
-  table {
-    background-color: white;
-    margin-left: auto;
-    margin-right: auto;
-  }
-</style>
-
-<h1 align="center">Life Wgpu</h1>
-
-|    |
-|:--:|
-| <a href="https://www.rust-lang.org/"><img src="https://simpleicons.org/icons/rust.svg" width="50px" height="50px"/></a> + <a href="https://www.rust-lang.org/what/wasm"><img src="https://simpleicons.org/icons/webassembly.svg" width="50px" height="50px"/></a> + <a href="https://wgpu.rs/"><img src="https://wgpu.rs/logo.min.svg" width="50px" height="50px"/></a> |
+<h1 align="center">Life Wgpu
+</br>
+<a href="https://www.rust-lang.org/"><img src="https://simpleicons.org/icons/rust.svg" width="50px" height="50px"/></a>
++
+<a href="https://www.rust-lang.org/what/wasm"><img src="https://simpleicons.org/icons/webassembly.svg" width="50px" height="50px"/></a>
++
+<a href="https://wgpu.rs/"><img src="https://wgpu.rs/logo.min.svg" width="50px" height="50px"/></a>
+</h1>
 
 ### Description:
-todo!();
+An implementation of Conway's Game of Life using Rust, Wgpu and WebAssembly. 
+
+Rendering and simulation are done on the GPU for blazingly fast 🔥 performance. 
+
+The web build is available at: [life-wgpu.vercel.app](https://life-wgpu.vercel.app/)
 
 ### Licence:
 [MIT](./LICENCE.txt). Go nuts.
