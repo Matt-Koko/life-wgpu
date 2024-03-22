@@ -15,6 +15,19 @@
     <div class="main-container">
         <h1>LIFE WGPU</h1>
         <canvas id="life-wgpu"></canvas>
+        <div id="webgpu-warning">
+            <div id="webgpu-warning-content" class="info-content">
+                <p>Your browser does not support WebGPU ;-;</p>
+                <p style="margin-bottom: 0;">Try to update your browser, or open in:</p>
+                <p style="margin-top: 0;">
+                    <br />- <a href="https://www.google.com.au/intl/en_au/chrome/">Google Chrome</a>
+                    <br />- <a href="https://www.microsoft.com/en-us/edge/download?form=MA13FJ">Microsoft Edge</a>
+                    <br />- <a href="https://arc.net/">Arc</a>
+                    <br />- <a href="https://www.opera.com/">Opera</a>
+                </p>
+                <p>When is my browser going to support WebGPU? <a href="https://caniuse.com/webgpu">Soon</a>!</p>
+            </div>
+        </div>
     </div>
     <div class="triangle"></div>
     <i class="question-mark fa-regular fa-circle-question"></i>
@@ -24,13 +37,20 @@
         <div class="info-content">
             <p>This is an implementation of <a href="https://en.wikipedia.org/wiki/Conway%27s_Game_of_Life">Conway's
                     Game of Life</a> running on your GPU!</p>
-            <p>Controls:
-                <br />R - randomise grid
-                <br />P - pause/play
-                <br />S - step simulation
-                <br />C - clear grid
-                <br />Mouse - toggle cells
-            </p>
+            <p style="margin-bottom: 0;">Controls:</p>
+            <div style="display: flex; flex-direction: row; gap: 20px;">
+                <p style="margin-top: 0;">
+                    P → pause/play
+                    <br />S → step simulation
+                    <br />+ → increase speed
+                    <br />- → decrease speed
+                </p>
+                <p style="margin-top: 0;">
+                    R → randomise grid
+                    <br />C → clear grid
+                    <br />Mouse → toggle cells
+                </p>
+            </div>
             <p>This app was built with <a href="https://wgpu.rs/">wgpu</a>, a library which allows us to create graphics
                 and compute pipelines on the GPU using
                 Rust code. Wgpu is able to run both natively and in the browser through <a
@@ -41,8 +61,9 @@
             <p>Since wgpu is based on the WebGPU spec, I was able to follow this <a
                     href="https://codelabs.developers.google.com/your-first-webgpu-app">Google CodeLabs tutorial</a> to
                 better understand graphics programming and use as the basis for this simulation implementation.</p>
-            <p>Check out the <a href="https://github.com/Matt-Koko/life-wgpu">source code</a> on GitHub.</p>
-            <p style="margin-top: -2vh">&copy; Matt Koko 2024, MIT Licence</p>
+            <p style="margin-bottom: 0;">Check out the <a href="https://github.com/Matt-Koko/life-wgpu">source code</a>
+                on GitHub.</p>
+            <p style="margin-top: 0;">&copy; Matt Koko 2024, MIT Licence</p>
             <p><i>In memory of John Conway (1937-2020)</i></p>
         </div>
     </div>
@@ -67,13 +88,26 @@
         const questionMark = document.querySelector('.question-mark');
         const infoModal = document.querySelector('.info-modal');
         const canvas = document.getElementById('life-wgpu');
+        const webgpuWarning = document.getElementById('webgpu-warning');
+        const webgpuWarningContent = document.getElementById('webgpu-warning-content');
+
+        // Check for WebGPU support
+        if ('gpu' in navigator) {
+            canvas.style.display = 'flex';
+            webgpuWarning.style.display = 'none';
+        } else {
+            canvas.style.display = 'none';
+            webgpuWarning.style.display = 'flex';
+        }
 
         questionMark.addEventListener('click', () => {
             infoModal.classList.add('show');
+            webgpuWarningContent.style.opacity = '0';
         });
 
         infoModal.addEventListener('click', () => {
             infoModal.classList.remove('show');
+            webgpuWarningContent.style.opacity = '1';
         });
 
         // Canvas must be in focus to receive keyboard events.

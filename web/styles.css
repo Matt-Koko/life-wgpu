@@ -86,7 +86,6 @@ a:visited {
 .info-content {
     background-color: rgba(0, 0, 0, 0.7);
     font-size: 2vh;
-    background-color: transparent;
     border: 3px solid white;
     padding: 40px;
     /* we want the final dimensions to be 80vh, so we account for the padding and border */
@@ -97,4 +96,13 @@ a:visited {
     flex-direction: column;
     align-items: center;
     justify-content: center;
+}
+
+#webgpu-warning {
+    display: none;
+}
+
+#webgpu-warning-content {
+    opacity: 1;
+    transition: opacity 1s;
 }
