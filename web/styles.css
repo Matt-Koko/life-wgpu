@@ -4,7 +4,7 @@
 	font-weight: 400;
 	font-stretch: normal;
 	font-style: normal;
-	src: url('TTF/Iosevka-Regular.ttf') format('truetype');
+	src: url('fonts/Iosevka-Regular.ttf') format('truetype');
 }
 
 @font-face {
